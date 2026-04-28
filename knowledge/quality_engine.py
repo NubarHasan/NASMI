@@ -32,6 +32,47 @@ class QualityEngine:
     def score_batch(self, objects: list[KnowledgeObject]) -> list[KnowledgeObject]:
         return [self.score(obj) for obj in objects]
 
+    def system_summary(self) -> dict:
+        try:
+            from db.database import Database
+
+            with Database() as db:
+                rows = db.fetchall(
+                    "SELECT completeness, freshness, consistency FROM knowledge_objects "
+                    "WHERE state = ?",
+                    ("ACTIVE",),
+                )
+
+            if not rows:
+                return {
+                    "trust_score": None,
+                    "completeness": None,
+                    "freshness": None,
+                    "consistency": None,
+                }
+
+            avg = lambda key: round(sum(r[key] for r in rows) / len(rows) * 100)
+
+            completeness = avg("completeness")
+            freshness = avg("freshness")
+            consistency = avg("consistency")
+            trust_score = round((completeness + freshness + consistency) / 3)
+
+            return {
+                "trust_score": trust_score,
+                "completeness": completeness,
+                "freshness": freshness,
+                "consistency": consistency,
+            }
+
+        except Exception:
+            return {
+                "trust_score": None,
+                "completeness": None,
+                "freshness": None,
+                "consistency": None,
+            }
+
     def _completeness(self, obj: KnowledgeObject) -> float:
         filled = [
             bool(obj.value),
