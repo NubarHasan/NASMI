@@ -1,0 +1,57 @@
+# Core
+streamlit
+python-dotenv
+pydantic
+
+# Document Processing
+pdfplumber
+python-docx
+pytesseract
+pillow
+pillow-heif
+pypdf2
+
+# Image Processing
+opencv-python
+numpy
+
+# AI / LLM
+ollama
+requests
+httpx
+
+# Database
+sqlalchemy
+alembic
+
+# NLP / NER
+spacy
+python-dateutil
+regex
+
+# Vector Store
+chromadb
+sentence-transformers
+
+# Data & Analysis
+pandas
+
+# Export & Reporting
+reportlab
+openpyxl
+jinja2
+
+# Encryption & Security
+cryptography
+bcrypt
+
+# File Handling
+python-magic
+filetype
+watchdog
+
+# Utils
+loguru
+tqdm
+rich
+click

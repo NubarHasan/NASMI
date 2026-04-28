@@ -11,6 +11,7 @@ OUTPUT_DIR = DATA_DIR / "outputs"
 for _dir in [DATA_DIR, UPLOAD_DIR, OUTPUT_DIR, DB_PATH.parent]:
     _dir.mkdir(parents=True, exist_ok=True)
 
+
 OLLAMA_BASE_URL = "http://localhost:11434"
 
 MODELS = {
@@ -23,9 +24,14 @@ MODELS = {
 
 EXTRACTION = {
     "max_file_size_mb": 50,
-    "supported_formats": [".pdf", ".png", ".jpg", "heic", ".jpeg", ".tiff", ".docx"],
+    "supported_formats": [".pdf", ".png", ".jpg", ".heic", ".jpeg", ".tiff", ".docx"],
     "ocr_dpi": 300,
     "confidence_threshold": 0.85,
+}
+
+TESSERACT = {
+    "cmd": r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+    "langs": ["eng", "ara", "deu"],
 }
 
 DB = {
