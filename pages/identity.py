@@ -1,11 +1,102 @@
 from __future__ import annotations
 import streamlit as st
 from ui.style import apply_theme, page_header, badge
+from db.database import Database
 
 apply_theme()
 page_header(
     "🪪", "Identity & Claims", "Identity Core 🔒 · Signed Claims · Export Certificates"
 )
+
+
+# ── DB Loaders ────────────────────────────────────────
+def _load_identity_core() -> dict:
+    try:
+        with Database() as db:
+            row = db.fetchone(
+                """
+                SELECT full_name, date_of_birth, nationality, id_number,
+                       id_type, verified, lock_level, trust_score, last_verified
+                FROM identity_core
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            )
+            if not row:
+                return {}
+            return {
+                "full_name": row["full_name"] or "—",
+                "date_of_birth": str(row["date_of_birth"] or "—")[:10],
+                "nationality": row["nationality"] or "—",
+                "id_number": row["id_number"] or "—",
+                "id_type": row["id_type"] or "—",
+                "verified": str(row["verified"] or "—"),
+                "lock_level": row["lock_level"] or "HARD",
+                "trust_score": int(row["trust_score"] or 0),
+                "last_verified": str(row["last_verified"] or "—")[:10],
+            }
+    except Exception:
+        return {}
+
+
+def _load_doc_count() -> int:
+    try:
+        with Database() as db:
+            row = db.fetchone("SELECT COUNT(*) AS cnt FROM documents")
+            return int(row["cnt"] or 0) if row else 0
+    except Exception:
+        return 0
+
+
+def _load_claims() -> list[dict]:
+    try:
+        with Database() as db:
+            rows = db.fetchall(
+                """
+                SELECT id, title, type, issued_at, expires_at,
+                       field_count, source, status
+                FROM claims
+                ORDER BY issued_at DESC
+                """
+            )
+            return [
+                {
+                    "id": r["id"],
+                    "title": r["title"] or "—",
+                    "type": r["type"] or "—",
+                    "issued": str(r["issued_at"] or "—")[:10],
+                    "expires": str(r["expires_at"] or "—")[:10],
+                    "fields": int(r["field_count"] or 0),
+                    "source": r["source"] or "—",
+                    "status": r["status"] or "active",
+                }
+                for r in rows
+            ]
+    except Exception:
+        return []
+
+
+def _load_claim_fields(claim_id: int) -> list[dict]:
+    try:
+        with Database() as db:
+            rows = db.fetchall(
+                """
+                SELECT field, value, verified
+                FROM claim_fields
+                WHERE claim_id = ?
+                """,
+                (claim_id,),
+            )
+            return [
+                {
+                    "field": r["field"] or "—",
+                    "value": r["value"] or "—",
+                    "verified": "Yes" if r["verified"] else "No",
+                }
+                for r in rows
+            ]
+    except Exception:
+        return []
 
 
 # ── Renderers ─────────────────────────────────────────
@@ -23,15 +114,15 @@ def _render_frozen_field(label: str, value: str, lock: str = "HARD") -> None:
     )
 
 
-def _render_claim_card(claim: dict[str, object], idx: int) -> None:
-    status = str(claim["status"])
+def _render_claim_card(claim: dict, idx: int) -> None:
+    status = claim["status"]
     st.markdown(
         f"<div class='nasmi-card'>"
         f"<div style='display:flex;justify-content:space-between;align-items:flex-start;'>"
         f"<div style='flex:1;'>"
         f"<div style='display:flex;align-items:center;gap:0.5rem;margin-bottom:0.3rem;'>"
         f"<span style='font-weight:700;color:#e3f2fd;font-size:0.92rem;'>{claim['title']}</span>"
-        f"{badge(str(claim['type']), status)}"
+        f"{badge(claim['type'], status)}"
         f"</div>"
         f"<div style='font-size:0.75rem;color:#546e7a;'>"
         f"📅 Issued: {claim['issued']} · ⏳ Expires: {claim['expires']}"
@@ -62,26 +153,28 @@ def _render_claim_card(claim: dict[str, object], idx: int) -> None:
             st.toast(f"Revoked: {claim['title']}", icon="🚫")
 
     if st.session_state.get(f"claim_open_{idx}"):
+        fields = _load_claim_fields(claim["id"])
         st.markdown(
             "<div class='nasmi-card' style='background:#0d1b2a;margin-top:0.3rem;'>"
             "<div style='font-size:0.75rem;color:#546e7a;margin-bottom:0.5rem;'>CLAIM FIELDS</div>",
             unsafe_allow_html=True,
         )
-        mock_fields: list[dict[str, str]] = [
-            {"field": "Full Name", "value": "—", "verified": "Yes"},
-            {"field": "Date of Birth", "value": "—", "verified": "Yes"},
-            {"field": "Nationality", "value": "—", "verified": "Yes"},
-        ]
-        for f in mock_fields:
+        if not fields:
             st.markdown(
-                f"<div style='display:flex;gap:1rem;align-items:center;"
-                f"padding:0.3rem 0;border-bottom:1px solid #1e2d4a;'>"
-                f"<span style='font-size:0.75rem;color:#546e7a;width:30%;'>{f['field']}</span>"
-                f"<span style='font-size:0.82rem;color:#e3f2fd;width:45%;'>{f['value']}</span>"
-                f"<span style='font-size:0.7rem;color:#a5d6a7;width:25%;'>✔ {f['verified']}</span>"
-                f"</div>",
+                "<div style='font-size:0.75rem;color:#37474f;padding:0.5rem 0;'>No fields found.</div>",
                 unsafe_allow_html=True,
             )
+        else:
+            for f in fields:
+                st.markdown(
+                    f"<div style='display:flex;gap:1rem;align-items:center;"
+                    f"padding:0.3rem 0;border-bottom:1px solid #1e2d4a;'>"
+                    f"<span style='font-size:0.75rem;color:#546e7a;width:30%;'>{f['field']}</span>"
+                    f"<span style='font-size:0.82rem;color:#e3f2fd;width:45%;'>{f['value']}</span>"
+                    f"<span style='font-size:0.7rem;color:#a5d6a7;width:25%;'>✔ {f['verified']}</span>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
         st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<div style='margin-bottom:0.5rem;'></div>", unsafe_allow_html=True)
@@ -95,7 +188,11 @@ def _empty_state(msg: str = "No data found.") -> None:
     )
 
 
-# ── Tabs ──────────────────────────────────────────────
+# ── Load Data ─────────────────────────────────────────
+identity = _load_identity_core()
+doc_count = _load_doc_count()
+all_claims = _load_claims()
+
 tab_core, tab_claims, tab_export = st.tabs(
     [
         "🔒 Identity Core",
@@ -128,40 +225,47 @@ with tab_core:
             "margin-bottom:0.8rem;'>👤 Core Identity Fields</div>",
             unsafe_allow_html=True,
         )
-        _render_frozen_field("Full Name", "—", "HARD")
-        _render_frozen_field("Date of Birth", "—", "HARD")
-        _render_frozen_field("Nationality", "—", "HARD")
-        _render_frozen_field("ID Number", "—", "HARD")
-        _render_frozen_field("ID Type", "—", "HARD")
-        _render_frozen_field("Verified", "—", "HARD")
-        _render_frozen_field("Lock Level", "HARD", "HARD")
+        lock = identity.get("lock_level", "HARD")
+        _render_frozen_field("Full Name", identity.get("full_name", "—"), lock)
+        _render_frozen_field("Date of Birth", identity.get("date_of_birth", "—"), lock)
+        _render_frozen_field("Nationality", identity.get("nationality", "—"), lock)
+        _render_frozen_field("ID Number", identity.get("id_number", "—"), lock)
+        _render_frozen_field("ID Type", identity.get("id_type", "—"), lock)
+        _render_frozen_field("Verified", identity.get("verified", "—"), lock)
+        _render_frozen_field("Lock Level", lock, lock)
         st.markdown("</div>", unsafe_allow_html=True)
 
     with col_score:
+        trust = identity.get("trust_score", "—")
+        last = identity.get("last_verified", "—")
         st.markdown(
-            "<div class='nasmi-card' style='text-align:center;'>"
-            "<div style='font-size:0.75rem;color:#546e7a;margin-bottom:0.5rem;'>"
-            "TRUST SCORE</div>"
-            "<div style='font-size:2.5rem;font-weight:700;color:#a5d6a7;'>—</div>"
-            "<div style='font-size:0.7rem;color:#37474f;margin-top:0.3rem;'>"
-            "Identity Verified</div>"
-            "</div>"
-            "<div class='nasmi-card' style='text-align:center;margin-top:0.5rem;'>"
-            "<div style='font-size:0.75rem;color:#546e7a;margin-bottom:0.5rem;'>"
-            "DOCUMENTS</div>"
-            "<div style='font-size:2rem;font-weight:700;color:#e3f2fd;'>—</div>"
-            "<div style='font-size:0.7rem;color:#37474f;margin-top:0.3rem;'>"
-            "Linked to identity</div>"
-            "</div>"
-            "<div class='nasmi-card' style='text-align:center;margin-top:0.5rem;'>"
-            "<div style='font-size:0.75rem;color:#546e7a;margin-bottom:0.5rem;'>"
-            "LAST VERIFIED</div>"
-            "<div style='font-size:0.85rem;font-weight:600;color:#e3f2fd;'>—</div>"
-            "</div>",
+            f"<div class='nasmi-card' style='text-align:center;'>"
+            f"<div style='font-size:0.75rem;color:#546e7a;margin-bottom:0.5rem;'>TRUST SCORE</div>"
+            f"<div style='font-size:2.5rem;font-weight:700;color:#a5d6a7;'>{trust}</div>"
+            f"<div style='font-size:0.7rem;color:#37474f;margin-top:0.3rem;'>Identity Verified</div>"
+            f"</div>"
+            f"<div class='nasmi-card' style='text-align:center;margin-top:0.5rem;'>"
+            f"<div style='font-size:0.75rem;color:#546e7a;margin-bottom:0.5rem;'>DOCUMENTS</div>"
+            f"<div style='font-size:2rem;font-weight:700;color:#e3f2fd;'>{doc_count}</div>"
+            f"<div style='font-size:0.7rem;color:#37474f;margin-top:0.3rem;'>Linked to identity</div>"
+            f"</div>"
+            f"<div class='nasmi-card' style='text-align:center;margin-top:0.5rem;'>"
+            f"<div style='font-size:0.75rem;color:#546e7a;margin-bottom:0.5rem;'>LAST VERIFIED</div>"
+            f"<div style='font-size:0.85rem;font-weight:600;color:#e3f2fd;'>{last}</div>"
+            f"</div>",
             unsafe_allow_html=True,
         )
 
     st.divider()
+
+    core_fields = [
+        ("Full Name", bool(identity.get("full_name", "—") != "—")),
+        ("Date of Birth", bool(identity.get("date_of_birth", "—") != "—")),
+        ("Nationality", bool(identity.get("nationality", "—") != "—")),
+        ("ID Number", bool(identity.get("id_number", "—") != "—")),
+        ("ID Type", bool(identity.get("id_type", "—") != "—")),
+        ("Verified", bool(identity.get("verified", "—") != "—")),
+    ]
 
     st.markdown(
         "<div class='nasmi-card'>"
@@ -169,22 +273,13 @@ with tab_core:
         "margin-bottom:0.8rem;'>📊 Identity Completeness</div>",
         unsafe_allow_html=True,
     )
-    completeness_fields: list[dict[str, object]] = [
-        {"field": "Full Name", "filled": True},
-        {"field": "Date of Birth", "filled": True},
-        {"field": "Nationality", "filled": True},
-        {"field": "ID Number", "filled": True},
-        {"field": "ID Type", "filled": True},
-        {"field": "Verified", "filled": False},
-    ]
-    for cf in completeness_fields:
-        icon = "✅" if cf["filled"] else "⬜"
-        color = "#a5d6a7" if cf["filled"] else "#37474f"
+    for field_name, filled in core_fields:
+        icon = "✅" if filled else "⬜"
+        color = "#a5d6a7" if filled else "#37474f"
         st.markdown(
-            f"<div style='display:flex;align-items:center;gap:0.5rem;"
-            f"padding:0.25rem 0;'>"
+            f"<div style='display:flex;align-items:center;gap:0.5rem;padding:0.25rem 0;'>"
             f"<span>{icon}</span>"
-            f"<span style='font-size:0.8rem;color:{color};'>{cf['field']}</span>"
+            f"<span style='font-size:0.8rem;color:{color};'>{field_name}</span>"
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -197,14 +292,17 @@ with tab_core:
 with tab_claims:
     col_new, col_filter = st.columns([3, 2])
     with col_new:
-        if st.button("➕ Generate New Claim", use_container_width=True):
+        if st.button(
+            "➕ Generate New Claim", use_container_width=True, key="new_claim_btn"
+        ):
             st.session_state["new_claim_open"] = not st.session_state.get(
                 "new_claim_open", False
             )
     with col_filter:
+        statuses = ["All"] + sorted({c["status"] for c in all_claims})
         claim_filter = st.selectbox(
             "Filter",
-            ["All", "active", "expired", "revoked"],
+            statuses,
             label_visibility="collapsed",
             key="id_claim_filter",
         )
@@ -256,50 +354,21 @@ with tab_claims:
     st.divider()
 
     c1, c2, c3 = st.columns(3)
-    c1.metric("Total Claims", "—")
-    c2.metric("Active", "—")
-    c3.metric("Expired", "—")
+    c1.metric("Total Claims", len(all_claims))
+    c2.metric("Active", sum(1 for c in all_claims if c["status"] == "active"))
+    c3.metric("Expired", sum(1 for c in all_claims if c["status"] == "expired"))
 
     st.divider()
 
-    mock_claims: list[dict[str, object]] = [
-        {
-            "title": "Identity Proof",
-            "type": "Identity",
-            "issued": "—",
-            "expires": "—",
-            "fields": 3,
-            "source": "Personalausweis",
-            "status": "active",
-        },
-        {
-            "title": "Address Proof",
-            "type": "Address",
-            "issued": "—",
-            "expires": "—",
-            "fields": 2,
-            "source": "Meldebescheinigung",
-            "status": "active",
-        },
-        {
-            "title": "Financial Proof",
-            "type": "Financial",
-            "issued": "—",
-            "expires": "—",
-            "fields": 2,
-            "source": "Kontoauszug",
-            "status": "expired",
-        },
-    ]
-
-    filtered_c: list[dict[str, object]] = list(mock_claims)
+    filtered_c = list(all_claims)
     if claim_filter != "All":
         filtered_c = [c for c in filtered_c if c["status"] == claim_filter]
 
     if not filtered_c:
         _empty_state("No claims found.")
-    for idx, claim in enumerate(filtered_c):
-        _render_claim_card(claim, idx)
+    else:
+        for idx, claim in enumerate(filtered_c):
+            _render_claim_card(claim, idx)
 
 
 # ══════════════════════════════════════════════════════
@@ -323,9 +392,7 @@ with tab_export:
     col_fmt, col_scope = st.columns(2)
     with col_fmt:
         cert_format = st.selectbox(
-            "Export Format",
-            ["PDF Certificate", "JSON", "Both"],
-            key="cert_format",
+            "Export Format", ["PDF Certificate", "JSON", "Both"], key="cert_format"
         )
     with col_scope:
         cert_scope = st.selectbox(
@@ -346,7 +413,9 @@ with tab_export:
 
     st.divider()
 
-    if st.button("📤 Generate Certificate", use_container_width=True):
+    if st.button(
+        "📤 Generate Certificate", use_container_width=True, key="gen_cert_btn"
+    ):
         if cert_fields:
             with st.spinner("Generating certificate..."):
                 st.toast("Certificate generated successfully", icon="📤")
