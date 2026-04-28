@@ -35,7 +35,7 @@ class TextExtractor:
                     }
                 )
 
-        full_text = "\n".join(p["text"] for p in pages)
+        full_text = "\n".join(str(p["text"]) for p in pages)
 
         return ExtractedText(
             source=doc.filename,

@@ -16,6 +16,7 @@ class EventType(Enum):
     REVIEW_REQUIRED = "review.required"
     EXPORT_GENERATED = "export.generated"
     FORM_FILLED = "form.filled"
+    PROVENANCE_RECORDED = "provenance.recorded"
 
 
 @dataclass

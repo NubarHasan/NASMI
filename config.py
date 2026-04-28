@@ -44,3 +44,4 @@ APP = {
     "version": "1.0.0",
     "debug": False,
 }
+SECRET_KEY = "nasmi-secret-key-change-in-production"
