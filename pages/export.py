@@ -328,14 +328,15 @@ with tab_history:
 
     with Database() as db:
         total_exports = db.fetchone(
-            "SELECT COUNT(*) as cnt FROM audit_log WHERE action LIKE ?", ("%export%",)
+            "SELECT COUNT(*) as cnt FROM audit_log WHERE action LIKE ?",
+            ("%export%",),
         )
         week_exports = db.fetchone(
-            "SELECT COUNT(*) as cnt FROM audit_log WHERE action LIKE ? AND created_at >= date('now', '-7 days')",
+            "SELECT COUNT(*) as cnt FROM audit_log WHERE action LIKE ? AND performed_at >= date('now', '-7 days')",
             ("%export%",),
         )
         history_rows = db.fetchall(
-            "SELECT action, details, created_at FROM audit_log WHERE action LIKE ? ORDER BY created_at DESC LIMIT 50",
+            "SELECT action, details, performed_at FROM audit_log WHERE action LIKE ? ORDER BY performed_at DESC LIMIT 50",
             ("%export%",),
         )
 
@@ -356,7 +357,7 @@ with tab_history:
                 "name": str(r["action"] or "—"),
                 "type": str(r["details"] or "Custom"),
                 "format": "—",
-                "date": str(r["created_at"] or "—"),
+                "date": str(r["performed_at"] or "—"),
                 "size": "—",
             }
         )
