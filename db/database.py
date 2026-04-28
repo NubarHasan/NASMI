@@ -1,4 +1,5 @@
 import sqlite3
+from pathlib import Path
 from config import DB
 
 
@@ -7,11 +8,13 @@ class Database:
     def __init__(self):
         self.path = DB["path"]
         self.timeout = DB["timeout"]
-        self.connection = None
+        self.connection: sqlite3.Connection | None = None
 
     def connect(self):
         self.connection = sqlite3.connect(self.path, timeout=self.timeout)
         self.connection.row_factory = sqlite3.Row
+        self.connection.execute("PRAGMA journal_mode=WAL")
+        self.connection.execute("PRAGMA foreign_keys=ON")
         return self.connection
 
     def disconnect(self):
@@ -19,49 +22,39 @@ class Database:
             self.connection.close()
             self.connection = None
 
-    def create_tables(self):
+    def initialize(self):
+        schema_path = Path(__file__).parent / "schema.sql"
         conn = self.connect()
         cursor = conn.cursor()
-
-        cursor.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS documents (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                filename    TEXT NOT NULL,
-                file_type   TEXT NOT NULL,
-                file_size   REAL,
-                uploaded_at TEXT DEFAULT (datetime('now')),
-                status      TEXT DEFAULT 'pending'
-            );
-
-            CREATE TABLE IF NOT EXISTS extractions (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                document_id INTEGER NOT NULL,
-                method      TEXT NOT NULL,
-                raw_text    TEXT,
-                confidence  REAL,
-                created_at  TEXT DEFAULT (datetime('now')),
-                FOREIGN KEY (document_id) REFERENCES documents(id)
-            );
-
-            CREATE TABLE IF NOT EXISTS results (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                extraction_id INTEGER NOT NULL,
-                entity_type   TEXT,
-                entity_value  TEXT,
-                model_used    TEXT,
-                created_at    TEXT DEFAULT (datetime('now')),
-                FOREIGN KEY (extraction_id) REFERENCES extractions(id)
-            );
-        """
-        )
-
+        cursor.executescript(schema_path.read_text(encoding="utf-8"))
         conn.commit()
         self.disconnect()
+
+    def execute(self, query: str, params: tuple = ()):
+        if not self.connection:
+            raise RuntimeError("No active connection. Use with Database() as db.")
+        cursor = self.connection.cursor()
+        cursor.execute(query, params)
+        return cursor
+
+    def fetchall(self, query: str, params: tuple = ()):
+        cursor = self.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+    def fetchone(self, query: str, params: tuple = ()):
+        cursor = self.execute(query, params)
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def commit(self):
+        if self.connection:
+            self.connection.commit()
 
     def __enter__(self):
         self.connect()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            self.commit()
         self.disconnect()
