@@ -1,6 +1,9 @@
 from __future__ import annotations
 import streamlit as st
 from ui.style import apply_theme, page_header, badge
+from db.database import Database
+from db.models import EntityModel, ContradictionModel
+from knowledge.quality_engine import QualityEngine
 
 apply_theme()
 page_header(
@@ -9,12 +12,92 @@ page_header(
     "All extracted knowledge — entities · values · sources · trust scores",
 )
 
+_ent_model = EntityModel()
+_con_model = ContradictionModel()
+_qe = QualityEngine()
 
-def _render_entry(e: dict[str, object]) -> None:
-    trust = int(e["trust"])  # type: ignore[arg-type]
-    confidence = int(e["confidence"])  # type: ignore[arg-type]
+
+def _load_kb() -> list[dict]:
+    try:
+        with Database() as db:
+            rows = db.fetchall(
+                """
+                SELECT
+                    e.id,
+                    e.entity_type,
+                    e.entity_value,
+                    e.confidence,
+                    e.source,
+                    e.created_at,
+                    d.filename,
+                    d.file_type,
+                    (
+                        SELECT COUNT(*) FROM entities e2
+                        WHERE e2.entity_type = e.entity_type
+                    ) AS versions
+                FROM entities e
+                LEFT JOIN documents d ON d.id = e.document_id
+                ORDER BY e.created_at DESC
+                """,
+            )
+
+            conflict_fields: set[str] = set()
+            conflicts = db.fetchall("SELECT field FROM contradictions")
+            for c in conflicts:
+                conflict_fields.add(c["field"])
+
+        result = []
+        for r in rows:
+            trust = int((r["confidence"] or 0) * 100)
+            result.append(
+                {
+                    "id": r["id"],
+                    "entity": r["entity_type"],
+                    "value": r["entity_value"] or "—",
+                    "type": r["entity_type"],
+                    "source": r["filename"] or "—",
+                    "doc_type": r["file_type"] or "—",
+                    "trust": trust,
+                    "confidence": trust,
+                    "status": (
+                        "active"
+                        if trust >= 80
+                        else "pending" if trust >= 50 else "expired"
+                    ),
+                    "date": str(r["created_at"])[:10] if r["created_at"] else "—",
+                    "versions": r["versions"] or 1,
+                    "conflict": r["entity_type"] in conflict_fields,
+                }
+            )
+        return result
+
+    except Exception:
+        return []
+
+
+def _load_metrics(entries: list[dict]) -> dict:
+    summary = _qe.system_summary()
+    conflicts = sum(1 for e in entries if e["conflict"])
+    dates = [e["date"] for e in entries if e["date"] != "—"]
+    last_updated = max(dates) if dates else "—"
+
+    unique = len({e["entity"] for e in entries})
+
+    return {
+        "total": len(entries),
+        "unique": unique,
+        "trust": f"{summary['trust_score']}%" if summary["trust_score"] else "—",
+        "conflicts": conflicts,
+        "last_updated": last_updated,
+    }
+
+
+def _render_entry(e: dict) -> None:
+    trust: int = e["trust"]  # type: ignore
+    confidence: int = e["confidence"]  # type: ignore
     trust_color = "#a5d6a7" if trust >= 80 else "#ffcc80" if trust >= 50 else "#ef9a9a"
     conflict_badge = f"&nbsp;{badge('⚠ CONFLICT', 'conflict')}" if e["conflict"] else ""
+
     st.markdown(
         f"<div class='nasmi-card'>"
         f"<div style='display:flex;justify-content:space-between;align-items:flex-start;'>"
@@ -52,11 +135,21 @@ def _empty_state() -> None:
     )
 
 
-if "kb_view" not in st.session_state:
-    st.session_state.kb_view = "By Entity Type"
-if "kb_filter" not in st.session_state:
-    st.session_state.kb_filter = "All"
+# ── Load Data ─────────────────────────────────────────
+all_entries = _load_kb()
+metrics = _load_metrics(all_entries)
 
+# ── Metrics Bar ───────────────────────────────────────
+s1, s2, s3, s4, s5 = st.columns(5)
+s1.metric("Total Entries", metrics["total"])
+s2.metric("Unique Entities", metrics["unique"])
+s3.metric("Avg Trust Score", metrics["trust"])
+s4.metric("Conflicts", metrics["conflicts"])
+s5.metric("Last Updated", metrics["last_updated"])
+
+st.divider()
+
+# ── Controls ──────────────────────────────────────────
 col_view, col_filter, col_sort, col_search = st.columns([2, 2, 2, 3])
 
 with col_view:
@@ -65,18 +158,21 @@ with col_view:
         ["By Entity Type", "By Document", "By Date", "Flat List"],
         label_visibility="collapsed",
     )
+
 with col_filter:
     kb_filter = st.selectbox(
         "Filter",
         ["All", "PERSON", "DATE", "ADDRESS", "ID", "FINANCE", "GPE", "OTHER"],
         label_visibility="collapsed",
     )
+
 with col_sort:
-    st.selectbox(
+    sort_by = st.selectbox(
         "Sort",
         ["Trust Score ↓", "Date Added ↓", "Confidence ↓", "Alphabetical"],
         label_visibility="collapsed",
     )
+
 with col_search:
     kb_search = st.text_input(
         "Search KB",
@@ -86,98 +182,33 @@ with col_search:
 
 st.divider()
 
-s1, s2, s3, s4, s5 = st.columns(5)
-s1.metric("Total Entries", "—")
-s2.metric("Unique Entities", "—")
-s3.metric("Avg Trust Score", "—")
-s4.metric("Conflicts", "—")
-s5.metric("Last Updated", "—")
-
-st.divider()
-
-mock_kb: list[dict[str, object]] = [
-    {
-        "entity": "Full Name",
-        "value": "—",
-        "type": "PERSON",
-        "source": "—",
-        "doc_type": "Personalausweis",
-        "trust": 0,
-        "confidence": 0,
-        "status": "new",
-        "date": "—",
-        "versions": 1,
-        "conflict": False,
-    },
-    {
-        "entity": "Date of Birth",
-        "value": "—",
-        "type": "DATE",
-        "source": "—",
-        "doc_type": "Personalausweis",
-        "trust": 0,
-        "confidence": 0,
-        "status": "new",
-        "date": "—",
-        "versions": 1,
-        "conflict": False,
-    },
-    {
-        "entity": "Address",
-        "value": "—",
-        "type": "ADDRESS",
-        "source": "—",
-        "doc_type": "Meldebescheinigung",
-        "trust": 0,
-        "confidence": 0,
-        "status": "pending",
-        "date": "—",
-        "versions": 2,
-        "conflict": True,
-    },
-    {
-        "entity": "IBAN",
-        "value": "—",
-        "type": "FINANCE",
-        "source": "—",
-        "doc_type": "Kontoauszug",
-        "trust": 0,
-        "confidence": 0,
-        "status": "new",
-        "date": "—",
-        "versions": 1,
-        "conflict": False,
-    },
-    {
-        "entity": "Nationality",
-        "value": "—",
-        "type": "GPE",
-        "source": "—",
-        "doc_type": "Reisepass",
-        "trust": 0,
-        "confidence": 0,
-        "status": "active",
-        "date": "—",
-        "versions": 1,
-        "conflict": False,
-    },
-]
-
-filtered: list[dict[str, object]] = list(mock_kb)
+# ── Filter ────────────────────────────────────────────
+filtered = list(all_entries)
 
 if kb_filter != "All":
     filtered = [e for e in filtered if e["type"] == kb_filter]
 
 if kb_search.strip():
+    q = kb_search.lower()
     filtered = [
         e
         for e in filtered
-        if kb_search.lower() in str(e["entity"]).lower()
-        or kb_search.lower() in str(e["value"]).lower()
+        if q in str(e["entity"]).lower() or q in str(e["value"]).lower()
     ]
 
+# ── Sort ──────────────────────────────────────────────
+if sort_by == "Trust Score ↓":
+    filtered.sort(key=lambda e: e["trust"], reverse=True)
+elif sort_by == "Date Added ↓":
+    filtered.sort(key=lambda e: e["date"], reverse=True)
+elif sort_by == "Confidence ↓":
+    filtered.sort(key=lambda e: e["confidence"], reverse=True)
+elif sort_by == "Alphabetical":
+    filtered.sort(key=lambda e: str(e["entity"]))
+
+# ── Render ────────────────────────────────────────────
 if view == "By Entity Type":
-    entity_types: list[str] = sorted({str(e["type"]) for e in filtered})
+    entity_types = sorted({str(e["type"]) for e in filtered})
     if not entity_types:
         _empty_state()
     for etype in entity_types:
@@ -193,7 +224,7 @@ elif view == "Flat List":
         _render_entry(e)
 
 elif view == "By Document":
-    docs: list[str] = sorted({str(e["source"]) for e in filtered})
+    docs = sorted({str(e["source"]) for e in filtered})
     if not docs:
         _empty_state()
     for doc in docs:
@@ -203,7 +234,7 @@ elif view == "By Document":
                 _render_entry(e)
 
 elif view == "By Date":
-    dates: list[str] = sorted({str(e["date"]) for e in filtered}, reverse=True)
+    dates = sorted({str(e["date"]) for e in filtered}, reverse=True)
     if not dates:
         _empty_state()
     for d in dates:
