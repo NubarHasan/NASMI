@@ -1,6 +1,7 @@
 from __future__ import annotations
 import streamlit as st
 from ui.style import apply_theme, page_header, badge
+from db.database import Database
 
 apply_theme()
 page_header(
@@ -10,9 +11,46 @@ page_header(
 )
 
 
+# ── DB Loader ─────────────────────────────────────────
+def _load_events() -> list[dict]:
+    try:
+        with Database() as db:
+            rows = db.fetchall(
+                """
+                SELECT title, description, category, status, source, event_date
+                FROM events
+                ORDER BY event_date DESC
+                """
+            )
+            return [
+                {
+                    "title": r["title"] or "—",
+                    "description": r["description"] or "—",
+                    "category": r["category"] or "system",
+                    "status": r["status"] or "active",
+                    "source": r["source"] or "—",
+                    "date": str(r["event_date"] or "—")[:10],
+                    "year": str(r["event_date"] or "—")[:4],
+                }
+                for r in rows
+            ]
+    except Exception:
+        return []
+
+
+def _load_stats(events: list[dict]) -> dict:
+    return {
+        "total": len(events),
+        "docs": sum(1 for e in events if e["category"] == "document"),
+        "fields": sum(1 for e in events if e["category"] == "field"),
+        "conflicts": sum(1 for e in events if e["category"] == "conflict"),
+        "last": events[0]["date"] if events else "—",
+    }
+
+
 # ── Renderers ─────────────────────────────────────────
-def _render_event(e: dict[str, object]) -> None:
-    icon_map: dict[str, str] = {
+def _render_event(e: dict) -> None:
+    icon_map = {
         "document": "📄",
         "field": "✏️",
         "address": "🏠",
@@ -21,7 +59,7 @@ def _render_event(e: dict[str, object]) -> None:
         "financial": "💰",
         "system": "⚙️",
     }
-    icon = icon_map.get(str(e["category"]), "📌")
+    icon = icon_map.get(e["category"], "📌")
     st.markdown(
         f"<div class='nasmi-card' style='display:flex;gap:1rem;align-items:flex-start;'>"
         f"<div style='font-size:1.4rem;padding-top:0.1rem;'>{icon}</div>"
@@ -29,14 +67,12 @@ def _render_event(e: dict[str, object]) -> None:
         f"<div style='display:flex;justify-content:space-between;align-items:center;'>"
         f"<span style='font-weight:600;color:#e3f2fd;font-size:0.9rem;'>{e['title']}</span>"
         f"<div style='display:flex;gap:0.4rem;align-items:center;'>"
-        f"{badge(str(e['category']), str(e['status']))}"
+        f"{badge(e['category'], e['status'])}"
         f"<span style='font-size:0.72rem;color:#37474f;'>{e['date']}</span>"
         f"</div>"
         f"</div>"
         f"<div style='font-size:0.8rem;color:#546e7a;margin-top:0.2rem;'>{e['description']}</div>"
-        f"<div style='font-size:0.72rem;color:#37474f;margin-top:0.3rem;'>"
-        f"📄 {e['source']}"
-        f"</div>"
+        f"<div style='font-size:0.72rem;color:#37474f;margin-top:0.3rem;'>📄 {e['source']}</div>"
         f"</div>"
         f"</div>",
         unsafe_allow_html=True,
@@ -64,29 +100,25 @@ def _empty_state(msg: str = "No events found.") -> None:
 
 
 # ── Controls ──────────────────────────────────────────
+all_events = _load_events()
+stats = _load_stats(all_events)
+
 col_cat, col_status, col_search, col_view = st.columns([2, 2, 3, 2])
 
 with col_cat:
+    categories = ["All"] + sorted({e["category"] for e in all_events})
     cat_filter = st.selectbox(
         "Category",
-        [
-            "All",
-            "document",
-            "field",
-            "address",
-            "conflict",
-            "identity",
-            "financial",
-            "system",
-        ],
+        categories,
         label_visibility="collapsed",
         key="tl_cat",
     )
 
 with col_status:
+    statuses = ["All"] + sorted({e["status"] for e in all_events})
     status_filter = st.selectbox(
         "Status",
-        ["All", "active", "expired", "pending", "conflict", "new"],
+        statuses,
         label_visibility="collapsed",
         key="tl_status",
     )
@@ -111,65 +143,16 @@ st.divider()
 
 # ── Stats ─────────────────────────────────────────────
 s1, s2, s3, s4, s5 = st.columns(5)
-s1.metric("Total Events", "—")
-s2.metric("Documents", "—")
-s3.metric("Field Changes", "—")
-s4.metric("Conflicts", "—")
-s5.metric("Last Event", "—")
+s1.metric("Total Events", stats["total"])
+s2.metric("Documents", stats["docs"])
+s3.metric("Field Changes", stats["fields"])
+s4.metric("Conflicts", stats["conflicts"])
+s5.metric("Last Event", stats["last"])
 
 st.divider()
 
-# ── Mock Events ───────────────────────────────────────
-mock_events: list[dict[str, object]] = [
-    {
-        "title": "Personalausweis uploaded",
-        "description": "Identity document processed — 6 entities extracted",
-        "category": "document",
-        "status": "active",
-        "source": "—",
-        "date": "—",
-        "year": "2024",
-    },
-    {
-        "title": "Address updated",
-        "description": "New address extracted from Meldebescheinigung",
-        "category": "address",
-        "status": "active",
-        "source": "—",
-        "date": "—",
-        "year": "2024",
-    },
-    {
-        "title": "IBAN conflict detected",
-        "description": "Two different IBAN values found across documents",
-        "category": "conflict",
-        "status": "conflict",
-        "source": "—",
-        "date": "—",
-        "year": "2024",
-    },
-    {
-        "title": "Reisepass uploaded",
-        "description": "Passport processed — nationality and expiry extracted",
-        "category": "document",
-        "status": "active",
-        "source": "—",
-        "date": "—",
-        "year": "2023",
-    },
-    {
-        "title": "Tax ID registered",
-        "description": "Tax ID extracted from Steuerbescheid",
-        "category": "identity",
-        "status": "active",
-        "source": "—",
-        "date": "—",
-        "year": "2023",
-    },
-]
-
 # ── Filter Logic ──────────────────────────────────────
-filtered: list[dict[str, object]] = list(mock_events)
+filtered = list(all_events)
 
 if cat_filter != "All":
     filtered = [e for e in filtered if e["category"] == cat_filter]
@@ -178,12 +161,13 @@ if status_filter != "All":
     filtered = [e for e in filtered if e["status"] == status_filter]
 
 if tl_search.strip():
+    q = tl_search.lower()
     filtered = [
         e
         for e in filtered
-        if tl_search.lower() in str(e["title"]).lower()
-        or tl_search.lower() in str(e["description"]).lower()
-        or tl_search.lower() in str(e["source"]).lower()
+        if q in e["title"].lower()
+        or q in e["description"].lower()
+        or q in e["source"].lower()
     ]
 
 # ── Views ─────────────────────────────────────────────
@@ -191,15 +175,14 @@ if not filtered:
     _empty_state("No events match the current filter.")
 
 elif tl_view == "Chronological":
-    years: list[str] = sorted({str(e["year"]) for e in filtered}, reverse=True)
+    years = sorted({e["year"] for e in filtered}, reverse=True)
     for year in years:
         _render_year_divider(year)
-        for e in filtered:
-            if e["year"] == year:
-                _render_event(e)
+        for e in [x for x in filtered if x["year"] == year]:
+            _render_event(e)
 
 elif tl_view == "By Category":
-    cats: list[str] = sorted({str(e["category"]) for e in filtered})
+    cats = sorted({e["category"] for e in filtered})
     for cat in cats:
         group = [e for e in filtered if e["category"] == cat]
         with st.expander(f"{cat.capitalize()}  ({len(group)} events)", expanded=True):
@@ -207,7 +190,7 @@ elif tl_view == "By Category":
                 _render_event(e)
 
 elif tl_view == "By Document":
-    docs: list[str] = sorted({str(e["source"]) for e in filtered})
+    docs = sorted({e["source"] for e in filtered})
     for doc in docs:
         group = [e for e in filtered if e["source"] == doc]
         with st.expander(f"📄 {doc}  ({len(group)} events)", expanded=False):
