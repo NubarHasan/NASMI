@@ -1,47 +1,58 @@
-import os
+import hashlib
 from pathlib import Path
-from config import EXTRACTION
+from dataclasses import dataclass, field
+
+
+SUPPORTED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".docx"}
+
+
+@dataclass
+class LoadedDocument:
+    filename: str
+    file_type: str
+    file_size: float
+    file_hash: str
+    file_path: Path
+    raw_bytes: bytes
+    metadata: dict = field(default_factory=dict)
 
 
 class DocumentLoader:
 
-    def __init__(self):
-        self.supported_formats = EXTRACTION["supported_formats"]
-        self.max_size_mb = EXTRACTION["max_file_size_mb"]
-
-    def validate(self, file_path: str) -> dict:
+    def load(self, file_path: str | Path) -> LoadedDocument:
         path = Path(file_path)
 
         if not path.exists():
-            return {"valid": False, "error": "File not found"}
+            raise FileNotFoundError(f"File not found: {path}")
 
-        ext = path.suffix.lower()
-        if ext not in self.supported_formats:
-            return {"valid": False, "error": f"Unsupported format: {ext}"}
+        if path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+            raise ValueError(f"Unsupported file type: {path.suffix}")
 
-        size_mb = path.stat().st_size / (1024 * 1024)
-        if size_mb > self.max_size_mb:
-            return {"valid": False, "error": f"File too large: {size_mb:.1f}MB"}
+        raw_bytes = path.read_bytes()
 
-        return {"valid": True, "error": None}
+        return LoadedDocument(
+            filename=path.name,
+            file_type=path.suffix.lower().lstrip("."),
+            file_size=round(len(raw_bytes) / 1024, 2),
+            file_hash=self._hash(raw_bytes),
+            file_path=path,
+            raw_bytes=raw_bytes,
+        )
 
-    def load(self, file_path: str) -> dict:
-        validation = self.validate(file_path)
-        if not validation["valid"]:
-            return {"success": False, "error": validation["error"], "data": None}
+    def load_from_bytes(self, raw_bytes: bytes, filename: str) -> LoadedDocument:
+        suffix = Path(filename).suffix.lower()
 
-        path = Path(file_path)
+        if suffix not in SUPPORTED_EXTENSIONS:
+            raise ValueError(f"Unsupported file type: {suffix}")
 
-        return {
-            "success": True,
-            "error": None,
-            "data": {
-                "filename": path.name,
-                "file_type": path.suffix.lower(),
-                "file_size": round(path.stat().st_size / (1024 * 1024), 3),
-                "full_path": str(path.resolve()),
-            },
-        }
+        return LoadedDocument(
+            filename=filename,
+            file_type=suffix.lstrip("."),
+            file_size=round(len(raw_bytes) / 1024, 2),
+            file_hash=self._hash(raw_bytes),
+            file_path=Path(filename),
+            raw_bytes=raw_bytes,
+        )
 
-    def load_many(self, file_paths: list) -> list:
-        return [self.load(fp) for fp in file_paths]
+    def _hash(self, raw_bytes: bytes) -> str:
+        return hashlib.sha256(raw_bytes).hexdigest()
