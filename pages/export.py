@@ -1,6 +1,6 @@
-from __future__ import annotations
 import streamlit as st
 from ui.style import apply_theme, page_header, badge
+from db.database import Database
 
 apply_theme()
 page_header("📤", "Export", "Export documents · data · reports · certificates")
@@ -37,11 +37,13 @@ def _render_export_card(
 
 
 def _render_format_selector(key: str) -> str:
-    return st.selectbox(
-        "Format",
-        ["PDF", "JSON", "CSV", "Excel"],
-        key=f"fmt_{key}",
-        label_visibility="collapsed",
+    return str(
+        st.selectbox(
+            "Format",
+            ["PDF", "JSON", "CSV", "Excel"],
+            key=f"fmt_{key}",
+            label_visibility="collapsed",
+        )
     )
 
 
@@ -247,15 +249,15 @@ with tab_custom:
             "margin-bottom:0.8rem;'>⚙️ Export Options</div>",
             unsafe_allow_html=True,
         )
-        cust_format = st.selectbox(
-            "Format",
-            ["PDF", "JSON", "CSV", "Excel", "ZIP (All)"],
-            key="cust_format",
+        cust_format = str(
+            st.selectbox(
+                "Format",
+                ["PDF", "JSON", "CSV", "Excel", "ZIP (All)"],
+                key="cust_format",
+            )
         )
-        cust_lang = st.selectbox(
-            "Language",
-            ["English", "Deutsch", "العربية"],
-            key="cust_lang",
+        cust_lang = str(
+            st.selectbox("Language", ["English", "Deutsch", "العربية"], key="cust_lang")
         )
         st.checkbox("Include QR Code", value=True, key="cust_qr")
         st.checkbox("Include Timestamps", value=True, key="cust_ts")
@@ -263,12 +265,6 @@ with tab_custom:
         st.checkbox("Password Protect PDF", value=False, key="cust_pwd")
         st.markdown("</div>", unsafe_allow_html=True)
 
-        st.markdown(
-            "<div class='nasmi-card' style='margin-top:0.5rem;'>"
-            "<div style='font-size:0.85rem;font-weight:700;color:#e3f2fd;"
-            "margin-bottom:0.5rem;'>📊 Export Summary</div>",
-            unsafe_allow_html=True,
-        )
         selected = sum(
             [
                 inc_identity,
@@ -281,11 +277,13 @@ with tab_custom:
             ]
         )
         st.markdown(
+            f"<div class='nasmi-card' style='margin-top:0.5rem;'>"
+            f"<div style='font-size:0.85rem;font-weight:700;color:#e3f2fd;margin-bottom:0.5rem;'>📊 Export Summary</div>"
             f"<div style='font-size:0.78rem;color:#546e7a;'>"
-            f"✅ {selected} section(s) selected · Format: {cust_format}</div>",
+            f"✅ {selected} section(s) selected · Format: {cust_format}</div>"
+            f"</div>",
             unsafe_allow_html=True,
         )
-        st.markdown("</div>", unsafe_allow_html=True)
 
     st.divider()
 
@@ -303,65 +301,71 @@ with tab_custom:
 
 
 # ══════════════════════════════════════════════════════
-# TAB 3 — Export History
+# TAB 3 — Export History (DB-connected)
 # ══════════════════════════════════════════════════════
 with tab_history:
     col_hfilter, col_hsearch = st.columns([2, 4])
     with col_hfilter:
-        hist_filter = st.selectbox(
-            "Type",
-            ["All", "Identity", "Knowledge Base", "Documents", "Custom"],
-            label_visibility="collapsed",
-            key="exp_hist_filter",
+        hist_filter = str(
+            st.selectbox(
+                "Type",
+                ["All", "Identity", "Knowledge Base", "Documents", "Custom"],
+                label_visibility="collapsed",
+                key="exp_hist_filter",
+            )
         )
     with col_hsearch:
-        hist_search = st.text_input(
-            "Search history",
-            placeholder="Search by export name...",
-            label_visibility="collapsed",
-            key="exp_hist_search",
+        hist_search = str(
+            st.text_input(
+                "Search history",
+                placeholder="Search by export name...",
+                label_visibility="collapsed",
+                key="exp_hist_search",
+            )
         )
 
     st.divider()
 
+    with Database() as db:
+        total_exports = db.fetchone(
+            "SELECT COUNT(*) as cnt FROM audit_log WHERE action LIKE ?", ("%export%",)
+        )
+        week_exports = db.fetchone(
+            "SELECT COUNT(*) as cnt FROM audit_log WHERE action LIKE ? AND created_at >= date('now', '-7 days')",
+            ("%export%",),
+        )
+        history_rows = db.fetchall(
+            "SELECT action, details, created_at FROM audit_log WHERE action LIKE ? ORDER BY created_at DESC LIMIT 50",
+            ("%export%",),
+        )
+
+    total_count = int(total_exports["cnt"]) if total_exports else 0
+    week_count = int(week_exports["cnt"]) if week_exports else 0
+
     h1, h2, h3 = st.columns(3)
-    h1.metric("Total Exports", "—")
-    h2.metric("This Week", "—")
+    h1.metric("Total Exports", str(total_count))
+    h2.metric("This Week", str(week_count))
     h3.metric("Storage Used", "—")
 
     st.divider()
 
-    mock_history: list[dict[str, object]] = [
-        {
-            "name": "Identity Summary",
-            "type": "Identity",
-            "format": "PDF",
-            "date": "—",
-            "size": "—",
-        },
-        {
-            "name": "Knowledge Base",
-            "type": "Knowledge Base",
-            "format": "JSON",
-            "date": "—",
-            "size": "—",
-        },
-        {
-            "name": "Custom Export",
-            "type": "Custom",
-            "format": "ZIP",
-            "date": "—",
-            "size": "—",
-        },
-    ]
+    history: list[dict[str, str]] = []
+    for r in history_rows:
+        history.append(
+            {
+                "name": str(r["action"] or "—"),
+                "type": str(r["details"] or "Custom"),
+                "format": "—",
+                "date": str(r["created_at"] or "—"),
+                "size": "—",
+            }
+        )
 
-    filtered_h: list[dict[str, object]] = list(mock_history)
+    filtered_h = list(history)
     if hist_filter != "All":
-        filtered_h = [h for h in filtered_h if h["type"] == hist_filter]
+        filtered_h = [h for h in filtered_h if hist_filter.lower() in h["type"].lower()]
     if hist_search.strip():
-        filtered_h = [
-            h for h in filtered_h if hist_search.lower() in str(h["name"]).lower()
-        ]
+        filtered_h = [h for h in filtered_h if hist_search.lower() in h["name"].lower()]
 
     if not filtered_h:
         _empty_state("No export history found.")
@@ -375,7 +379,7 @@ with tab_history:
                 f"<div style='font-size:0.72rem;color:#546e7a;margin-top:0.2rem;'>"
                 f"📅 {h['date']} · 📦 {h['size']} · 🗂️ {h['format']}</div>"
                 f"</div>"
-                f"{badge(str(h['type']), 'active')}"
+                f"{badge(h['type'], 'active')}"
                 f"</div>"
                 f"</div>",
                 unsafe_allow_html=True,
@@ -383,11 +387,15 @@ with tab_history:
             col_dl, col_del = st.columns([4, 1])
             with col_dl:
                 if st.button(
-                    f"⬇️ Download", key=f"dl_{h['name']}", use_container_width=True
+                    "⬇️ Download",
+                    key=f"dl_{h['name']}_{h['date']}",
+                    use_container_width=True,
                 ):
                     st.toast(f"Downloading {h['name']}", icon="⬇️")
             with col_del:
-                if st.button("🗑", key=f"del_{h['name']}", use_container_width=True):
+                if st.button(
+                    "🗑", key=f"del_{h['name']}_{h['date']}", use_container_width=True
+                ):
                     st.toast(f"Deleted {h['name']}", icon="🗑")
             st.markdown(
                 "<div style='margin-bottom:0.4rem;'></div>", unsafe_allow_html=True
