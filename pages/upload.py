@@ -5,6 +5,8 @@ from ui.style import apply_theme, page_header, badge
 from core.document_loader import DocumentLoader
 from intelligence.ocr_engine import OCREngine
 from intelligence.ner_engine import NEREngine
+from intelligence.smart_suggest import SmartSuggest
+from intelligence.field_schema import DocumentType
 from db.database import Database
 from db.models import DocumentModel, EntityModel, ContradictionModel, SystemLogModel
 
@@ -15,15 +17,18 @@ page_header(
     "Upload and process documents — OCR · NER · Knowledge Extraction",
 )
 
-if "pipeline_result" not in st.session_state:
-    st.session_state.pipeline_result = None
-if "pipeline_done" not in st.session_state:
-    st.session_state.pipeline_done = False
+for _k, _v in [
+    ("pipeline_result", None),
+    ("pipeline_done", False),
+]:
+    if _k not in st.session_state:
+        st.session_state[_k] = _v
 
 _doc_model = DocumentModel()
 _ent_model = EntityModel()
 _con_model = ContradictionModel()
 _log_model = SystemLogModel()
+_suggest = SmartSuggest()
 
 
 def _run_pipeline(
@@ -41,6 +46,7 @@ def _run_pipeline(
         "entities": None,
         "doc_id": None,
         "error": None,
+        "suggestions": None,
     }
 
     with tempfile.NamedTemporaryFile(
@@ -100,17 +106,13 @@ def _run_pipeline(
 
             if run_kb and entities:
                 with Database() as db:
-                    for field, value in entities.to_dict().items():
-                        if value and field not in (
-                            "confidence",
-                            "raw_response",
-                            "extra",
-                        ):
+                    for f, v in entities.to_dict().items():
+                        if v and f not in ("confidence", "raw_response", "extra"):
                             _ent_model.insert(
                                 db,
                                 document_id=doc_id,
-                                entity_type=field,
-                                entity_value=str(value),
+                                entity_type=f,
+                                entity_value=str(v),
                                 confidence=entities.confidence,
                                 source=doc_type,
                             )
@@ -124,7 +126,28 @@ def _run_pipeline(
             result["steps"]["🧠 NER Analysis"] = ("skipped", "Disabled")
             result["steps"]["🔗 Knowledge Base Merge"] = ("skipped", "NER disabled")
 
-        # ── Step 5: Contradiction Check ──
+        # ── Step 5: Smart Suggest ──
+        if result["entities"]:
+            detected_type = (
+                DocumentType(doc_type.lower())
+                if doc_type != "— Auto Detect —"
+                else DocumentType.UNKNOWN
+            )
+            suggestion = _suggest.analyze(
+                fields=result["entities"].to_dict(),
+                doc_type=detected_type,
+            )
+            result["suggestions"] = suggestion
+            missing_count = len(suggestion.missing_fields)
+            corrections_count = len(suggestion.corrections)
+            result["steps"]["💡 Smart Suggestions"] = (
+                "done",
+                f"{missing_count} missing · {corrections_count} corrections",
+            )
+        else:
+            result["steps"]["💡 Smart Suggestions"] = ("skipped", "No entities")
+
+        # ── Step 6: Contradiction Check ──
         if run_contradiction and result["entities"]:
             with Database() as db:
                 existing_entities = _ent_model.get_by_document(db, doc_id)
@@ -153,7 +176,7 @@ def _run_pipeline(
         else:
             result["steps"]["⚠️ Contradiction Check"] = ("skipped", "Disabled")
 
-        # ── Step 6: Finalize ──
+        # ── Step 7: Finalize ──
         with Database() as db:
             _doc_model.update_status(db, doc_id, "REVIEWED")
             _log_model.log(
@@ -198,11 +221,9 @@ with col_upload:
             f"<div style='font-weight:600;color:#e3f2fd;'>{uploaded_file.name}</div>"
             f"<div style='font-size:0.75rem;color:#546e7a;margin-top:0.2rem;'>"
             f"{size_kb:.1f} KB · {uploaded_file.type}"
-            f"</div>"
-            f"</div>"
+            f"</div></div>"
             f"{badge(ext, 'new')}"
-            f"</div>"
-            f"</div>",
+            f"</div></div>",
             unsafe_allow_html=True,
         )
 
@@ -269,14 +290,11 @@ with col_upload:
 
         if st.session_state.pipeline_done and st.session_state.pipeline_result:
             res = st.session_state.pipeline_result
+
             st.divider()
             st.markdown("#### 🔄 Processing Pipeline")
 
-            STATUS_BADGE = {
-                "done": "active",
-                "skipped": "pending",
-                "error": "expired",
-            }
+            STATUS_BADGE = {"done": "active", "skipped": "pending", "error": "expired"}
 
             for label, (status, note) in res["steps"].items():
                 note_html = (
@@ -293,6 +311,90 @@ with col_upload:
                     f"</div>",
                     unsafe_allow_html=True,
                 )
+
+            # ── Smart Suggestions Panel ──
+            suggestion = res.get("suggestions")
+            if suggestion:
+                st.divider()
+                st.markdown("#### 💡 Smart Suggestions")
+
+                s_col1, s_col2, s_col3 = st.columns(3)
+
+                with s_col1:
+                    doc_label = (
+                        suggestion.suggested_type.value
+                        if suggestion.suggested_type
+                        else "—"
+                    )
+                    conf_pct = f"{suggestion.confidence:.0%}"
+                    st.markdown(
+                        f"<div class='nasmi-card' style='text-align:center;'>"
+                        f"<div style='font-size:0.7rem;color:#546e7a;text-transform:uppercase;"
+                        f"letter-spacing:1px;'>Detected Type</div>"
+                        f"<div style='font-size:1.1rem;font-weight:700;color:#4fc3f7;"
+                        f"margin-top:0.4rem;'>{doc_label}</div>"
+                        f"<div style='font-size:0.75rem;color:#37474f;margin-top:0.2rem;'>"
+                        f"confidence {conf_pct}</div>"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+
+                with s_col2:
+                    missing_count = len(suggestion.missing_fields)
+                    color = "#ef9a9a" if missing_count else "#a5d6a7"
+                    st.markdown(
+                        f"<div class='nasmi-card' style='text-align:center;'>"
+                        f"<div style='font-size:0.7rem;color:#546e7a;text-transform:uppercase;"
+                        f"letter-spacing:1px;'>Missing Fields</div>"
+                        f"<div style='font-size:1.6rem;font-weight:700;color:{color};"
+                        f"margin-top:0.4rem;'>{missing_count}</div>"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+
+                with s_col3:
+                    corr_count = len(suggestion.corrections)
+                    color = "#ffcc80" if corr_count else "#a5d6a7"
+                    st.markdown(
+                        f"<div class='nasmi-card' style='text-align:center;'>"
+                        f"<div style='font-size:0.7rem;color:#546e7a;text-transform:uppercase;"
+                        f"letter-spacing:1px;'>Auto Corrections</div>"
+                        f"<div style='font-size:1.6rem;font-weight:700;color:{color};"
+                        f"margin-top:0.4rem;'>{corr_count}</div>"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+
+                if suggestion.missing_fields:
+                    st.markdown(
+                        "<div style='font-size:0.78rem;color:#ef9a9a;margin-top:0.8rem;"
+                        "margin-bottom:0.3rem;'>⚠️ Missing required fields:</div>",
+                        unsafe_allow_html=True,
+                    )
+                    for mf in suggestion.missing_fields:
+                        st.markdown(
+                            f"<div class='nasmi-card' style='padding:0.4rem 1rem;"
+                            f"font-size:0.82rem;color:#ffcc80;'>"
+                            f"· {mf.replace('_', ' ')}</div>",
+                            unsafe_allow_html=True,
+                        )
+
+                if suggestion.corrections:
+                    st.markdown(
+                        "<div style='font-size:0.78rem;color:#ffcc80;margin-top:0.8rem;"
+                        "margin-bottom:0.3rem;'>🔧 Auto corrections applied:</div>",
+                        unsafe_allow_html=True,
+                    )
+                    for field_name, corrected in suggestion.corrections.items():
+                        st.markdown(
+                            f"<div class='nasmi-card' style='display:flex;"
+                            f"justify-content:space-between;padding:0.4rem 1rem;"
+                            f"font-size:0.82rem;'>"
+                            f"<span style='color:#546e7a;'>{field_name.replace('_', ' ')}</span>"
+                            f"<span style='color:#a5d6a7;'>→ {corrected}</span>"
+                            f"</div>",
+                            unsafe_allow_html=True,
+                        )
 
             if res.get("error"):
                 st.error(f"Pipeline error: {res['error']}")
@@ -325,8 +427,7 @@ with col_preview:
                 "<div style='font-size:2rem;'>📄</div>"
                 "<div style='margin-top:0.5rem;'>PDF Preview</div>"
                 "<div style='font-size:0.75rem;margin-top:0.3rem;color:#37474f;'>"
-                "Full PDF viewer coming in final phase."
-                "</div>"
+                "Full PDF viewer coming in final phase.</div>"
                 "</div>",
                 unsafe_allow_html=True,
             )
@@ -338,19 +439,19 @@ with col_preview:
             )
 
         st.divider()
-
         st.markdown("#### 🧠 Extracted Entities")
+
         res = st.session_state.pipeline_result
         if res and res.get("entities"):
             entities = res["entities"]
-            for field, value in entities.to_dict().items():
-                if value and field not in ("confidence", "raw_response", "extra"):
+            for f, v in entities.to_dict().items():
+                if v and f not in ("confidence", "raw_response", "extra"):
                     st.markdown(
                         f"<div class='nasmi-card' style='display:flex;justify-content:space-between;"
                         f"align-items:center;padding:0.5rem 1rem;'>"
                         f"<span style='font-size:0.78rem;color:#546e7a;text-transform:uppercase;"
-                        f"letter-spacing:0.5px;'>{field.replace('_', ' ')}</span>"
-                        f"<span style='font-size:0.85rem;color:#e3f2fd;font-weight:500;'>{value}</span>"
+                        f"letter-spacing:0.5px;'>{f.replace('_', ' ')}</span>"
+                        f"<span style='font-size:0.85rem;color:#e3f2fd;font-weight:500;'>{v}</span>"
                         f"</div>",
                         unsafe_allow_html=True,
                     )
@@ -393,7 +494,6 @@ with col_preview:
             "<div style='margin-top:0.5rem;font-size:0.9rem;'>Preview Area</div>"
             "<div style='font-size:0.75rem;margin-top:0.3rem;'>"
             "Upload a document to see live preview and extracted entities."
-            "</div>"
-            "</div>",
+            "</div></div>",
             unsafe_allow_html=True,
         )

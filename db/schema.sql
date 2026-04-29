@@ -271,3 +271,25 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key);
+
+-- ------------------------------------------------------------
+-- 17. expiry_alerts
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS expiry_alerts (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    document_id   INTEGER,
+    field         TEXT NOT NULL,
+    value         TEXT,
+    expiry_date   TEXT NOT NULL,
+    days_remaining INTEGER,
+    severity      TEXT DEFAULT 'info',
+    status        TEXT DEFAULT 'active',
+    notified_at   TEXT,
+    created_at    TEXT DEFAULT (datetime('now')),
+    metadata      TEXT DEFAULT '{}',
+    FOREIGN KEY (document_id) REFERENCES documents(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_expiryalerts_status      ON expiry_alerts(status);
+CREATE INDEX IF NOT EXISTS idx_expiryalerts_expiry_date ON expiry_alerts(expiry_date);
+CREATE INDEX IF NOT EXISTS idx_expiryalerts_severity    ON expiry_alerts(severity);

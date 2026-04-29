@@ -263,3 +263,58 @@ class ExportModel:
 
     def get_all(self, db: Database):
         return db.fetchall("SELECT * FROM exports ORDER BY created_at DESC")
+
+
+class ExpiryAlertModel:
+
+    def insert(
+        self,
+        db: Database,
+        document_id: int,
+        field: str,
+        value: str,
+        expiry_date: str,
+        days_remaining: int,
+        severity: str = "info",
+    ) -> int:
+        cursor = db.execute(
+            "INSERT INTO expiry_alerts "
+            "(document_id, field, value, expiry_date, days_remaining, severity) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (document_id, field, value, expiry_date, days_remaining, severity),
+        )
+        lastrowid = cursor.lastrowid
+        if lastrowid is None:
+            raise ValueError("Failed to retrieve last inserted expiry alert ID")
+        return lastrowid
+
+    def get_active(self, db: Database) -> list:
+        return db.fetchall(
+            "SELECT * FROM expiry_alerts WHERE status = ? ORDER BY expiry_date ASC",
+            ("active",),
+        )
+
+    def get_by_severity(self, db: Database, severity: str) -> list:
+        return db.fetchall(
+            "SELECT * FROM expiry_alerts WHERE severity = ? AND status = ?"
+            " ORDER BY expiry_date ASC",
+            (severity, "active"),
+        )
+
+    def mark_notified(self, db: Database, alert_id: int) -> None:
+        db.execute(
+            "UPDATE expiry_alerts SET notified_at = datetime('now') WHERE id = ?",
+            (alert_id,),
+        )
+
+    def dismiss(self, db: Database, alert_id: int) -> None:
+        db.execute(
+            "UPDATE expiry_alerts SET status = ? WHERE id = ?",
+            ("dismissed", alert_id),
+        )
+
+    def get_by_document(self, db: Database, document_id: int) -> list:
+        return db.fetchall(
+            "SELECT * FROM expiry_alerts WHERE document_id = ? ORDER BY expiry_date ASC",
+            (document_id,),
+        )

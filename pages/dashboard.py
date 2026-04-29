@@ -38,6 +38,10 @@ def _load_stats() -> dict:
             recent_events = db.fetchall(
                 "SELECT * FROM events ORDER BY timestamp DESC LIMIT 8"
             )
+            suggestions_stats = db.fetchone(
+                "SELECT COUNT(*) as c FROM system_log WHERE source = ? AND level = ?",
+                ("upload", "INFO"),
+            )
         return {
             "total_docs": (total_docs or {}).get("c", 0),
             "active_entities": (active_entities or {}).get("c", 0),
@@ -45,6 +49,7 @@ def _load_stats() -> dict:
             "contradictions": (contradictions or {}).get("c", 0),
             "lifecycle": {r["status"]: r["c"] for r in lifecycle_counts},
             "recent_events": recent_events,
+            "processed_docs": (suggestions_stats or {}).get("c", 0),
         }
     except Exception:
         return {
@@ -54,6 +59,7 @@ def _load_stats() -> dict:
             "contradictions": 0,
             "lifecycle": {},
             "recent_events": [],
+            "processed_docs": 0,
         }
 
 
@@ -70,9 +76,31 @@ def _load_quality() -> dict:
         }
 
 
+def _load_suggestion_stats() -> dict:
+    try:
+        with Database() as db:
+            total_missing = db.fetchone(
+                "SELECT COUNT(*) as c FROM entities WHERE entity_value IS NULL OR entity_value = ''"
+            )
+            total_entities = db.fetchone("SELECT COUNT(*) as c FROM entities")
+        total = (total_entities or {}).get("c", 0)
+        missing = (total_missing or {}).get("c", 0)
+        filled = total - missing
+        coverage = round((filled / total) * 100) if total else 0
+        return {
+            "total": total,
+            "missing": missing,
+            "filled": filled,
+            "coverage": coverage,
+        }
+    except Exception:
+        return {"total": 0, "missing": 0, "filled": 0, "coverage": 0}
+
+
 # ── Load Data ─────────────────────────────────────────
 stats = _load_stats()
 quality = _load_quality()
+sug_stats = _load_suggestion_stats()
 
 trust_score = quality.get("trust_score")
 quality_score = quality.get("trust_score")
@@ -98,7 +126,7 @@ col_main, col_side = st.columns([3, 1])
 
 with col_main:
 
-    # ── Document Lifecycle Status ──
+    # ── Document Lifecycle ──
     st.markdown("#### 📄 Document Lifecycle")
     lc_map = stats["lifecycle"]
     lc_cols = st.columns(5)
@@ -115,8 +143,31 @@ with col_main:
         count = lc_map.get(key, 0)
         col.markdown(
             f"<div class='nasmi-card' style='text-align:center;'>"
-            f"<div style='font-size:1.4rem;font-weight:700;color:#4fc3f7;'>{count if count else '—'}</div>"
+            f"<div style='font-size:1.4rem;font-weight:700;color:#4fc3f7;'>"
+            f"{count if count else '—'}</div>"
             f"<div style='margin-top:0.3rem;'>{badge(label, status)}</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.divider()
+
+    # ── Smart Suggestions Stats ──
+    st.markdown("#### 💡 Smart Suggestions Overview")
+    sg_cols = st.columns(4)
+    sg_data = [
+        ("Total Entities", sug_stats["total"], "#4fc3f7", ""),
+        ("Filled Fields", sug_stats["filled"], "#a5d6a7", ""),
+        ("Missing Fields", sug_stats["missing"], "#ef9a9a", ""),
+        ("Field Coverage", f"{sug_stats['coverage']}%", "#ffcc80", ""),
+    ]
+    for col, (label, val, color, _) in zip(sg_cols, sg_data):
+        col.markdown(
+            f"<div class='nasmi-card' style='text-align:center;'>"
+            f"<div style='font-size:0.7rem;color:#546e7a;text-transform:uppercase;"
+            f"letter-spacing:1px;'>{label}</div>"
+            f"<div style='font-size:1.6rem;font-weight:700;color:{color};"
+            f"margin-top:0.4rem;'>{val if val else '—'}</div>"
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -131,9 +182,9 @@ with col_main:
             st.markdown(
                 f"<div class='nasmi-card' style='display:flex;justify-content:space-between;"
                 f"align-items:center;padding:0.5rem 1rem;'>"
-                f"<span style='font-size:0.8rem;color:#4fc3f7;'>{ev.get('event_type','—')}</span>"
-                f"<span style='font-size:0.75rem;color:#546e7a;'>{ev.get('source','—')}</span>"
-                f"<span style='font-size:0.72rem;color:#37474f;'>{ev.get('timestamp','—')}</span>"
+                f"<span style='font-size:0.8rem;color:#4fc3f7;'>{ev.get('event_type', '—')}</span>"
+                f"<span style='font-size:0.75rem;color:#546e7a;'>{ev.get('source', '—')}</span>"
+                f"<span style='font-size:0.72rem;color:#37474f;'>{ev.get('timestamp', '—')}</span>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
@@ -162,7 +213,8 @@ with col_main:
             f"<div class='nasmi-card' style='text-align:center;'>"
             f"<div style='font-size:0.7rem;color:#546e7a;text-transform:uppercase;"
             f"letter-spacing:1px;'>{label}</div>"
-            f"<div style='font-size:1.6rem;font-weight:700;color:#4fc3f7;margin-top:0.4rem;'>{display}</div>"
+            f"<div style='font-size:1.6rem;font-weight:700;color:#4fc3f7;"
+            f"margin-top:0.4rem;'>{display}</div>"
             f"<div style='font-size:0.7rem;color:#37474f;margin-top:0.2rem;'>{sub}</div>"
             f"</div>",
             unsafe_allow_html=True,
@@ -215,6 +267,8 @@ with col_side:
         alerts.append(f"✋ {stats['review_pending']} items pending review")
     if stats["contradictions"]:
         alerts.append(f"⚠️ {stats['contradictions']} unresolved contradictions")
+    if sug_stats["missing"]:
+        alerts.append(f"💡 {sug_stats['missing']} missing fields detected")
 
     if alerts:
         for alert in alerts:

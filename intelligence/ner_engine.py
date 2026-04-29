@@ -1,4 +1,6 @@
+import re
 import json
+import spacy
 from dataclasses import dataclass, field
 from llm.ollama_client import OllamaClient
 
@@ -15,8 +17,6 @@ Return a JSON object with these keys:
 - id_number: string or null
 - passport_number: string or null
 - address: string or null
-- phone: string or null
-- email: string or null
 - employer: string or null
 - issue_date: string (YYYY-MM-DD) or null
 - expiry_date: string (YYYY-MM-DD) or null
@@ -66,41 +66,99 @@ class ExtractedEntities:
 
 class NEREngine:
 
+    _nlp_de = None
+    _nlp_en = None
+
     def __init__(self) -> None:
         self.client = OllamaClient()
+        if NEREngine._nlp_de is None:
+            NEREngine._nlp_de = spacy.load("de_core_news_lg")
+        if NEREngine._nlp_en is None:
+            NEREngine._nlp_en = spacy.load("en_core_web_lg")
 
     def extract(self, text: str, model: str = "text") -> ExtractedEntities:
-        prompt = ENTITY_PROMPT.format(text=text[:4000])
-        raw = self.client.generate(
-            prompt, model=self.client.models[model], system=SYSTEM_PROMPT
-        )
-        entities = self._parse(raw)
+        entities = ExtractedEntities()
+        self._apply_regex(text, entities)
+        self._apply_spacy(text, entities)
         entities.confidence = self._score(entities)
+        if entities.confidence < 0.5:
+            self._apply_ollama(text, entities, model)
+            entities.confidence = self._score(entities)
         return entities
 
-    def _parse(self, raw: str) -> ExtractedEntities:
+    def _apply_regex(self, text: str, e: ExtractedEntities) -> None:
+        email_match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", text)
+        if email_match:
+            e.email = email_match.group()
+
+        phone_match = re.search(r"(\+?\d[\d\s\-\(\)]{7,}\d)", text)
+        if phone_match:
+            e.phone = phone_match.group().strip()
+
+        date_patterns = [
+            r"\b(\d{4}-\d{2}-\d{2})\b",
+            r"\b(\d{2}\.\d{2}\.\d{4})\b",
+            r"\b(\d{2}/\d{2}/\d{4})\b",
+        ]
+        dates_found = []
+        for pattern in date_patterns:
+            dates_found += re.findall(pattern, text)
+
+        if dates_found and not e.date_of_birth:
+            e.date_of_birth = dates_found[0]
+        if len(dates_found) > 1 and not e.issue_date:
+            e.issue_date = dates_found[1]
+        if len(dates_found) > 2 and not e.expiry_date:
+            e.expiry_date = dates_found[2]
+
+        id_match = re.search(r"\b([A-Z]{1,2}\d{6,9})\b", text)
+        if id_match:
+            e.id_number = id_match.group()
+
+        passport_match = re.search(r"\b([A-Z]{2}\d{7})\b", text)
+        if passport_match:
+            e.passport_number = passport_match.group()
+
+    def _apply_spacy(self, text: str, e: ExtractedEntities) -> None:
+        for nlp in [NEREngine._nlp_de, NEREngine._nlp_en]:
+            if nlp is None:
+                continue
+            doc = nlp(text[:3000])
+            for ent in doc.ents:
+                if ent.label_ == "PER" and not e.full_name:
+                    e.full_name = ent.text
+                elif ent.label_ in ("GPE", "LOC") and not e.address:
+                    e.address = ent.text
+                elif ent.label_ == "ORG" and not e.employer:
+                    e.employer = ent.text
+                elif ent.label_ in ("NORP", "GPE") and not e.nationality:
+                    e.nationality = ent.text
+
+    def _apply_ollama(self, text: str, e: ExtractedEntities, model: str) -> None:
         try:
+            prompt = ENTITY_PROMPT.format(text=text[:2000])
+            raw = self.client.generate(
+                prompt, model=self.client.models[model], system=SYSTEM_PROMPT
+            )
+            e.raw_response = raw
             start = raw.find("{")
             end = raw.rfind("}") + 1
             data = json.loads(raw[start:end])
-            return ExtractedEntities(
-                full_name=data.get("full_name"),
-                date_of_birth=data.get("date_of_birth"),
-                nationality=data.get("nationality"),
-                id_number=data.get("id_number"),
-                passport_number=data.get("passport_number"),
-                address=data.get("address"),
-                phone=data.get("phone"),
-                email=data.get("email"),
-                employer=data.get("employer"),
-                issue_date=data.get("issue_date"),
-                expiry_date=data.get("expiry_date"),
-                document_type=data.get("document_type"),
-                extra=data.get("extra", {}),
-                raw_response=raw,
-            )
+            e.full_name = e.full_name or data.get("full_name")
+            e.date_of_birth = e.date_of_birth or data.get("date_of_birth")
+            e.nationality = e.nationality or data.get("nationality")
+            e.id_number = e.id_number or data.get("id_number")
+            e.passport_number = e.passport_number or data.get("passport_number")
+            e.address = e.address or data.get("address")
+            e.employer = e.employer or data.get("employer")
+            e.issue_date = e.issue_date or data.get("issue_date")
+            e.expiry_date = e.expiry_date or data.get("expiry_date")
+            e.document_type = e.document_type or data.get("document_type")
+            extra = data.get("extra", {})
+            if extra:
+                e.extra.update(extra)
         except Exception:
-            return ExtractedEntities(raw_response=raw)
+            pass
 
     def _score(self, e: ExtractedEntities) -> float:
         fields = [

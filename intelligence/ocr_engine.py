@@ -45,7 +45,14 @@ class OCREngine:
                         image = page.to_image(resolution=self._dpi).original
                         ocr_text = self._run_ocr(image)
                         pages.append({"page": i + 1, "text": ocr_text, "method": "ocr"})
-            return {"status": "success", "source": str(path), "pages": pages}
+
+            full_text = "\n".join(p["text"] for p in pages)
+            return {
+                "status": "success",
+                "source": str(path),
+                "pages": pages,
+                "full_text": full_text,
+            }
         except Exception as e:
             return self._error(str(e))
 
@@ -57,6 +64,7 @@ class OCREngine:
                 "status": "success",
                 "source": str(path),
                 "pages": [{"page": 1, "text": text, "method": "ocr"}],
+                "full_text": text,
             }
         except Exception as e:
             return self._error(str(e))
@@ -68,4 +76,4 @@ class OCREngine:
         ).strip()
 
     def _error(self, message: str) -> dict:
-        return {"status": "error", "message": message, "pages": []}
+        return {"status": "error", "error": message, "pages": [], "full_text": ""}
