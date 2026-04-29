@@ -8,6 +8,8 @@ from db.models import (
     KnowledgeModel,
     AuditLogModel,
 )
+from core.event_bus import bus
+from core.events import Event, EventType
 
 apply_theme()
 page_header(
@@ -22,10 +24,23 @@ _km = KnowledgeModel()
 _al = AuditLogModel()
 
 PRIORITY_MAP = {2: "critical", 1: "suspicious", 0: "low"}
-PRIORITY_NUM = {"critical": 2, "suspicious": 1, "low": 0}
+
+CONFIDENCE_BOOST = 0.15
+CONFIDENCE_DECAY = 0.20
 
 
-# ── DB Loaders ────────────────────────────────────────
+# ── Event Notifier ─────────────────────────────────────────────────────────
+
+
+def _notify(event_type: EventType) -> None:
+    bus.publish(Event(event_type=event_type))
+    if "sidebar_needs_refresh" in st.session_state:
+        st.session_state["sidebar_needs_refresh"] = True
+
+
+# ── DB Loaders ─────────────────────────────────────────────────────────────
+
+
 def _load_queue() -> list[dict]:
     items: list[dict] = []
     try:
@@ -42,12 +57,13 @@ def _load_queue() -> list[dict]:
                     e.entity_type,
                     e.confidence,
                     d.filename,
-                    k.value AS known_value,
+                    k.value      AS known_value,
+                    k.confidence AS known_confidence,
                     k.updated_at AS last_updated
                 FROM review_queue rq
-                LEFT JOIN entities   e ON e.id  = rq.entity_id
-                LEFT JOIN documents  d ON d.id  = e.document_id
-                LEFT JOIN knowledge  k ON k.field = rq.field
+                LEFT JOIN entities  e ON e.id    = rq.entity_id
+                LEFT JOIN documents d ON d.id    = e.document_id
+                LEFT JOIN knowledge k ON k.field = rq.field
                 WHERE rq.status = ?
                 ORDER BY rq.priority DESC, rq.created_at ASC
                 """,
@@ -62,6 +78,7 @@ def _load_queue() -> list[dict]:
                         "field": r["field"] or "—",
                         "value": r["value"] or "—",
                         "known_value": r["known_value"] or "—",
+                        "known_confidence": float(r["known_confidence"] or 0.0),
                         "type": r["entity_type"] or "OTHER",
                         "source": r["filename"] or "—",
                         "confidence": int((r["confidence"] or 0) * 100),
@@ -91,6 +108,7 @@ def _load_queue() -> list[dict]:
                         "field": c["field"] or "—",
                         "value": c["value_a"] or "—",
                         "known_value": c["value_b"] or "—",
+                        "known_confidence": 0.0,
                         "type": "CONFLICT",
                         "source": c["source_a"] or "—",
                         "confidence": 0,
@@ -125,27 +143,61 @@ def _load_stats(items: list[dict]) -> dict:
         "critical": sum(1 for i in items if i["priority"] == "critical"),
         "suspicious": sum(1 for i in items if i["priority"] == "suspicious"),
         "low": sum(1 for i in items if i["priority"] == "low"),
-        "today": int((today_count or {}).get("c", 0)),  # type: ignore[arg-type]
+        "today": int((today_count or {}).get("c", 0)),
     }
 
 
-# ── DB Actions ────────────────────────────────────────
+# ── DB Actions ─────────────────────────────────────────────────────────────
+
+
 def _accept(item: dict, value: str) -> None:
+    is_correction = value.strip() != str(item["value"]).strip()
+    new_confidence = min(item["known_confidence"] + CONFIDENCE_BOOST, 1.0)
+
     with Database() as db:
         if item["source_type"] == "contradiction":
             _con.resolve(db, int(item["id"]), f"accepted:{value}")
+            _notify(EventType.CONFLICT_DETECTED)
         else:
             _rq.resolve(db, int(item["id"]), "approved")
-        _km.upsert(db, str(item["field"]), value, 1.0, str(item["source"]))
-        _al.log(db, "accept", "review_queue", int(item["id"]), "user", value)
+            _notify(EventType.ENTITY_VALIDATED)
+
+        _km.upsert(db, str(item["field"]), value, new_confidence, str(item["source"]))
+
+        action = "edit_accept" if is_correction else "accept"
+        _al.log(db, action, "review_queue", int(item["id"]), "user", value)
+
+        if is_correction and item["known_value"] != "—":
+            decayed = max(item["known_confidence"] - CONFIDENCE_DECAY, 0.0)
+            _km.upsert(
+                db,
+                str(item["field"]),
+                str(item["known_value"]),
+                decayed,
+                "system_decay",
+            )
 
 
 def _reject(item: dict) -> None:
+    decayed = max(item["known_confidence"] - CONFIDENCE_DECAY, 0.0)
+
     with Database() as db:
         if item["source_type"] == "contradiction":
             _con.resolve(db, int(item["id"]), "rejected")
+            _notify(EventType.CONFLICT_DETECTED)
         else:
             _rq.resolve(db, int(item["id"]), "rejected")
+            _notify(EventType.ENTITY_VALIDATED)
+
+        if item["value"] != "—":
+            _km.upsert(
+                db,
+                str(item["field"]),
+                str(item["value"]),
+                decayed,
+                "system_decay",
+            )
+
         _al.log(db, "reject", "review_queue", int(item["id"]), "user", "")
 
 
@@ -156,8 +208,10 @@ def _accept_all_low(items: list[dict]) -> int:
     return len(low)
 
 
-# ── Renderers ─────────────────────────────────────────
-def _render_item(item: dict, unique_key: str) -> None:
+# ── Renderers ──────────────────────────────────────────────────────────────
+
+
+def _render_item(item: dict, idx: int) -> None:
     priority = str(item["priority"])
     priority_color = (
         "#ef9a9a"
@@ -168,6 +222,11 @@ def _render_item(item: dict, unique_key: str) -> None:
         f"&nbsp;{badge('⚠ CONFLICT', 'conflict')}"
         if item["source_type"] == "contradiction"
         else ""
+    )
+
+    kb_conf = item["known_confidence"]
+    kb_conf_color = (
+        "#a5d6a7" if kb_conf >= 0.8 else "#ffcc80" if kb_conf >= 0.5 else "#ef9a9a"
     )
 
     st.markdown(
@@ -190,10 +249,10 @@ def _render_item(item: dict, unique_key: str) -> None:
         f"</div>"
         f"<div style='background:#0d1b2a;border-radius:6px;padding:0.6rem;'>"
         f"<div style='font-size:0.7rem;color:#546e7a;text-transform:uppercase;"
-        f"letter-spacing:0.5px;margin-bottom:0.2rem;'>Current Known Value</div>"
+        f"letter-spacing:0.5px;margin-bottom:0.2rem;'>Known Value in KB</div>"
         f"<div style='font-size:0.9rem;font-weight:600;color:#90a4ae;'>{item['known_value']}</div>"
-        f"<div style='font-size:0.7rem;color:#37474f;margin-top:0.2rem;'>"
-        f"📅 Last updated: {item['last_updated']}</div>"
+        f"<div style='font-size:0.7rem;color:{kb_conf_color};margin-top:0.2rem;'>"
+        f"KB confidence: {kb_conf:.0%} · 📅 {item['last_updated']}</div>"
         f"</div>"
         f"</div>"
         f"<div style='font-size:0.75rem;color:#546e7a;margin-top:0.2rem;'>"
@@ -208,38 +267,36 @@ def _render_item(item: dict, unique_key: str) -> None:
     col_accept, col_edit, col_reject, col_skip = st.columns([2, 2, 2, 1])
 
     with col_accept:
-        if st.button("✅ Accept", key=f"accept_{unique_key}", use_container_width=True):
+        if st.button("✅ Accept", key=f"accept_{idx}", use_container_width=True):
             _accept(item, str(item["value"]))
             st.toast(f"Accepted: {item['value']}", icon="✅")
             st.rerun()
 
     with col_edit:
-        if st.button(
-            "✏️ Edit & Accept", key=f"edit_{unique_key}", use_container_width=True
-        ):
-            st.session_state[f"edit_open_{unique_key}"] = True
+        if st.button("✏️ Edit & Accept", key=f"edit_{idx}", use_container_width=True):
+            st.session_state[f"edit_open_{idx}"] = True
 
     with col_reject:
-        if st.button("❌ Reject", key=f"reject_{unique_key}", use_container_width=True):
+        if st.button("❌ Reject", key=f"reject_{idx}", use_container_width=True):
             _reject(item)
             st.toast(f"Rejected: {item['field']}", icon="❌")
             st.rerun()
 
     with col_skip:
-        if st.button("⏭", key=f"skip_{unique_key}", use_container_width=True):
+        if st.button("⏭", key=f"skip_{idx}", use_container_width=True):
             st.toast("Skipped", icon="⏭")
 
-    if st.session_state.get(f"edit_open_{unique_key}"):
+    if st.session_state.get(f"edit_open_{idx}"):
         edited = st.text_input(
             "Corrected value",
             value=str(item["value"]),
-            key=f"edit_val_{unique_key}",
+            key=f"edit_val_{idx}",
         )
-        if st.button("💾 Save", key=f"save_edit_{unique_key}"):
+        if st.button("💾 Save", key=f"save_edit_{idx}"):
             if edited.strip():
                 _accept(item, edited.strip())
                 st.toast(f"Saved: {edited}", icon="💾")
-                st.session_state[f"edit_open_{unique_key}"] = False
+                st.session_state[f"edit_open_{idx}"] = False
                 st.rerun()
             else:
                 st.warning("Value cannot be empty.")
@@ -255,7 +312,8 @@ def _empty_state(msg: str = "Queue is empty.") -> None:
     )
 
 
-# ── Controls ──────────────────────────────────────────
+# ── Controls ───────────────────────────────────────────────────────────────
+
 col_pri, col_type, col_search, col_bulk = st.columns([2, 2, 3, 2])
 
 with col_pri:
@@ -297,16 +355,19 @@ with col_bulk:
 
 st.divider()
 
-# ── Load Data ─────────────────────────────────────────
+# ── Load Data ──────────────────────────────────────────────────────────────
+
 all_items = _load_queue()
 stats = _load_stats(all_items)
 
 if bulk_clicked:
     count = _accept_all_low(all_items)
     st.toast(f"Accepted {count} low-risk items", icon="✅")
+    _notify(EventType.ENTITY_VALIDATED)
     st.rerun()
 
-# ── Stats ─────────────────────────────────────────────
+# ── Stats ──────────────────────────────────────────────────────────────────
+
 s1, s2, s3, s4, s5 = st.columns(5)
 s1.metric("Total Pending", stats["total"])
 s2.metric("Critical", stats["critical"])
@@ -316,7 +377,8 @@ s5.metric("Reviewed Today", stats["today"])
 
 st.divider()
 
-# ── Filter ────────────────────────────────────────────
+# ── Filter ─────────────────────────────────────────────────────────────────
+
 filtered = list(all_items)
 
 if pri_filter != "All":
@@ -335,9 +397,10 @@ if rq_search.strip():
         or q in str(i["source"]).lower()
     ]
 
-# ── Render by Priority ────────────────────────────────
-priority_order = ["critical", "suspicious", "low"]
-label_map = {
+# ── Render by Priority ─────────────────────────────────────────────────────
+
+PRIORITY_ORDER = ["critical", "suspicious", "low"]
+LABEL_MAP = {
     "critical": "🔴 Critical",
     "suspicious": "🟡 Suspicious",
     "low": "⚪ Low Risk",
@@ -346,13 +409,14 @@ label_map = {
 if not filtered:
     _empty_state("Review queue is empty. ✅ All items have been processed.")
 else:
-    for pri in priority_order:
+    global_idx = 0
+    for pri in PRIORITY_ORDER:
         group = [i for i in filtered if i["priority"] == pri]
         if not group:
             continue
         with st.expander(
-            f"{label_map[pri]}  ({len(group)} items)", expanded=(pri == "critical")
+            f"{LABEL_MAP[pri]}  ({len(group)} items)", expanded=(pri == "critical")
         ):
             for item in group:
-                unique_key = f"{pri}_{str(item['id'])}_{str(item['source_type'])}"
-                _render_item(item, unique_key)
+                _render_item(item, global_idx)
+                global_idx += 1

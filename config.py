@@ -1,25 +1,22 @@
 from pathlib import Path
 
-
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 DB_PATH = BASE_DIR / "db" / "nasmi.db"
 UPLOAD_DIR = DATA_DIR / "uploads"
 OUTPUT_DIR = DATA_DIR / "outputs"
 
-
 for _dir in [DATA_DIR, UPLOAD_DIR, OUTPUT_DIR, DB_PATH.parent]:
     _dir.mkdir(parents=True, exist_ok=True)
 
-
-OLLAMA_BASE_URL = "http://localhost:11434"
+OLLAMA_BASE_URL = "http://192.168.0.101:11434"
 
 MODELS = {
-    "text": "qwen2.5:7b",
-    "vision": "moondream:latest",
+    "text": "llama3.2:1b",
+    "vision": "llava:latest",
     "general": "llama3.2:latest",
-    "heavy": "gpt-oss:120b",
-    "fallback": "gemma3:4b",
+    "embed": "nomic-embed-text:latest",
+    "fallback": "llama3.2:1b",
 }
 
 EXTRACTION = {
@@ -30,7 +27,7 @@ EXTRACTION = {
 }
 
 TESSERACT = {
-    "cmd": r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+    "cmd": "/usr/bin/tesseract",
     "langs": ["eng", "ara", "deu"],
 }
 
@@ -44,4 +41,5 @@ APP = {
     "version": "1.0.0",
     "debug": False,
 }
+
 SECRET_KEY = "nasmi-secret-key-change-in-production"

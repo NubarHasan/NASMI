@@ -1,12 +1,22 @@
+import tempfile
+import base64
+from pathlib import Path
+
 import streamlit as st
+
 from ui.style import apply_theme, page_header, badge
 from db.database import Database
+from db.models import EntityModel, KnowledgeModel
+from intelligence.ocr_engine import OCREngine
+from intelligence.form_detector import FormDetector, FieldCategory
+from llm.ollama_client import OllamaClient
+from config import UPLOAD_DIR
 
 apply_theme()
 page_header(
     "📝",
     "Smart Form Filler",
-    "Fields are extracted and filled automatically from your Knowledge Base",
+    "Fields are detected automatically from your uploaded form using OCR + AI",
 )
 
 # ── Session State ─────────────────────────────────────
@@ -20,46 +30,159 @@ for _k, _v in [
         st.session_state[_k] = _v
 
 
-# ── Load Fields from DB ───────────────────────────────
-def _load_fields_from_db() -> list[tuple[str, str | None, str, str, int]]:
-    field_map = {
-        "full name": "PERSON",
-        "date of birth": "DATE",
-        "nationality": "GPE",
-        "address": "ADDRESS",
-        "document number": "ID",
-        "iban": "FINANCE",
-    }
-    results: list[tuple[str, str | None, str, str, int]] = []
+# ── Save Uploaded File ────────────────────────────────
+def _save_upload(uploaded_file) -> Path:
+    dest = UPLOAD_DIR / uploaded_file.name
+    dest.write_bytes(uploaded_file.getvalue())
+    return dest
 
+
+# ── Ollama Field Analysis ─────────────────────────────
+def _ollama_enrich(full_text: str, detected_labels: list[str]) -> dict[str, str]:
+    client = OllamaClient()
+    if not client.is_available():
+        return {}
+
+    known = ", ".join(detected_labels) if detected_labels else "none"
+    prompt = (
+        f"You are a form analysis assistant.\n"
+        f"Given the following document text, extract any form fields and their values.\n"
+        f"Already detected fields: {known}\n"
+        f"Focus on fields NOT yet detected.\n"
+        f'Return ONLY a JSON object like: {{"field_name": "value", ...}}\n'
+        f"No explanation. No markdown.\n\n"
+        f"Document text:\n{full_text[:3000]}"
+    )
+
+    try:
+        response = client.generate(prompt=prompt, model=None)
+        import json, re
+
+        match = re.search(r"\{.*\}", response, re.DOTALL)
+        if match:
+            return json.loads(match.group())
+    except Exception:
+        pass
+    return {}
+
+
+# ── Save to Knowledge Base ────────────────────────────
+def _save_to_knowledge(fields: list[tuple]) -> None:
+    km = KnowledgeModel()
     with Database() as db:
-        for label, entity_type in field_map.items():
+        for label, value, entity_type, _, confidence in fields:
+            if value:
+                km.upsert(
+                    db=db,
+                    field=label.lower(),
+                    value=str(value),
+                    confidence=confidence / 100,
+                    source="form_filler",
+                )
+
+
+# ── Save to Entities ──────────────────────────────────
+def _save_to_entities(fields: list[tuple], doc_id: int) -> None:
+    em = EntityModel()
+    with Database() as db:
+        for label, value, entity_type, _, confidence in fields:
+            if value:
+                em.insert(
+                    db=db,
+                    document_id=doc_id,
+                    entity_type=entity_type,
+                    entity_value=str(value),
+                    confidence=confidence / 100,
+                    source="form_filler",
+                )
+
+
+# ── Register Form as Document ─────────────────────────
+def _register_document(filename: str, file_type: str, file_size: float) -> int:
+    from db.models import DocumentModel
+    import hashlib
+
+    file_hash = hashlib.md5(filename.encode()).hexdigest()
+    dm = DocumentModel()
+    with Database() as db:
+        existing = dm.get_by_hash(db, file_hash)
+        if existing:
+            return int(existing["id"])
+        doc_id = dm.insert(
+            db=db,
+            filename=filename,
+            file_type=file_type,
+            file_size=file_size,
+            file_hash=file_hash,
+        )
+        return int(doc_id)
+
+
+# ── Main Detection Pipeline ───────────────────────────
+def _run_detection(uploaded_file) -> list[tuple[str, str | None, str, str, int]]:
+    file_path = _save_upload(uploaded_file)
+    file_ext = file_path.suffix.lower().lstrip(".")
+
+    # Step 1: OCR
+    ocr = OCREngine()
+    ocr_result = ocr.extract(str(file_path))
+
+    if ocr_result["status"] != "success" or not ocr_result["full_text"].strip():
+        st.warning("⚠️ Could not extract text from this file.")
+        return []
+
+    pages = ocr_result["pages"]
+    full_text = ocr_result["full_text"]
+
+    # Step 2: FormDetector (patterns + labels)
+    detector = FormDetector()
+    detection = detector.detect(document_id=uploaded_file.name, pages=pages)
+
+    detected_labels = [f.label for f in detection.fields]
+    results: dict[str, tuple[str, str, int]] = {}
+
+    for f in detection.fields:
+        conf = int(f.score * 100)
+        status = "active" if conf >= 80 else "pending" if conf >= 50 else "new"
+        results[f.label] = (f.value, f.category.value, status, conf)
+
+    # Step 3: Ollama enrichment for missing fields
+    with st.spinner("🤖 AI is analyzing remaining fields..."):
+        ai_fields = _ollama_enrich(full_text, detected_labels)
+
+    for field_name, field_value in ai_fields.items():
+        if field_name not in results and field_value:
+            results[field_name] = (field_value, "UNKNOWN", "new", 70)
+
+    # Step 4: Search DB for existing values
+    final: list[tuple[str, str | None, str, str, int]] = []
+    with Database() as db:
+        for label, (value, entity_type, status, conf) in results.items():
             row = db.fetchone(
                 """
-                SELECT e.entity_value, e.confidence
-                FROM entities e
-                WHERE LOWER(e.entity_type) = ?
-                ORDER BY e.confidence DESC
-                LIMIT 1
+                SELECT entity_value, confidence FROM entities
+                WHERE LOWER(entity_type) = LOWER(?)
+                ORDER BY confidence DESC LIMIT 1
                 """,
                 (entity_type,),
             )
-            if row:
+            if row and float(row["confidence"]) > conf / 100:
                 value = str(row["entity_value"])
-                confidence = int(float(row["confidence"] or 0) * 100)
-                status = (
-                    "active"
-                    if confidence >= 80
-                    else "pending" if confidence >= 50 else "new"
-                )
-            else:
-                value = None
-                confidence = 0
-                status = "new"
+                conf = int(float(row["confidence"]) * 100)
+                status = "active" if conf >= 80 else "pending"
 
-            results.append((label.title(), value, entity_type, status, confidence))
+            final.append((label.title(), value, entity_type, status, conf))
 
-    return results
+    # Step 5: Save to Knowledge Base + Entities
+    doc_id = _register_document(
+        filename=uploaded_file.name,
+        file_type=file_ext,
+        file_size=len(uploaded_file.getvalue()) / 1024,
+    )
+    _save_to_entities(final, doc_id)
+    _save_to_knowledge(final)
+
+    return final
 
 
 # ── Layout ───────────────────────────────────────────
@@ -73,11 +196,6 @@ with col_left:
         "Fill Mode",
         ["Suggest Only", "Assisted Fill", "Identity Locked Fill"],
         horizontal=False,
-        help=(
-            "Suggest Only: shows suggestions without filling\n"
-            "Assisted Fill: fills fields + allows override\n"
-            "Identity Locked Fill: uses Identity Core only — no override"
-        ),
     )
 
     mode_info = {
@@ -102,9 +220,8 @@ with col_left:
     st.markdown("#### 📂 Upload Form to Fill")
     uploaded_form = st.file_uploader(
         "Upload a form",
-        type=["pdf", "docx", "png", "jpg"],
+        type=["pdf", "png", "jpg", "jpeg", "tiff"],
         label_visibility="collapsed",
-        help="Upload the form you want NASMI to fill",
     )
 
     if uploaded_form:
@@ -118,25 +235,6 @@ with col_left:
             f"</div>",
             unsafe_allow_html=True,
         )
-
-    st.divider()
-
-    st.markdown("#### 🗂️ Fill Source")
-    fill_source = st.selectbox(
-        "Source",
-        ["Knowledge Base (Auto)", "Specific Document", "Manual Input"],
-        label_visibility="collapsed",
-    )
-
-    if fill_source == "Specific Document":
-        with Database() as db:
-            docs = db.fetchall(
-                "SELECT filename FROM documents ORDER BY created_at DESC"
-            )
-        doc_names = (
-            [str(d["filename"]) for d in docs] if docs else ["— No documents yet —"]
-        )
-        st.selectbox("Select Document", doc_names)
 
     st.divider()
 
@@ -155,9 +253,10 @@ with col_left:
         )
 
 # ── Run Detection ─────────────────────────────────────
-if detect_btn:
-    with st.spinner("Loading fields from Knowledge Base..."):
-        st.session_state.form_fields = _load_fields_from_db()
+if detect_btn and uploaded_form:
+    with st.spinner("🔍 Extracting text and detecting fields..."):
+        st.session_state.form_fields = _run_detection(uploaded_form)
+        st.session_state.fill_mode = fill_mode
         st.session_state.detect_done = True
 
 # ── Right Panel ───────────────────────────────────────
@@ -184,25 +283,25 @@ with col_right:
             st.markdown(
                 "<div class='nasmi-card' style='text-align:center;padding:2rem;"
                 "color:#546e7a;font-size:0.85rem;'>"
-                "Click <b>🔍 Detect Fields</b> to load fields from your Knowledge Base."
+                "Click <b>🔍 Detect Fields</b> to analyze your form."
                 "</div>",
                 unsafe_allow_html=True,
             )
         else:
             st.markdown(
-                "<div style='font-size:0.75rem;color:#546e7a;margin-bottom:0.5rem;'>"
-                "Fields loaded from Knowledge Base — sorted by confidence."
-                "</div>",
+                f"<div style='font-size:0.75rem;color:#546e7a;margin-bottom:0.5rem;'>"
+                f"✅ {len(fields)} fields detected — saved to Knowledge Base."
+                f"</div>",
                 unsafe_allow_html=True,
             )
 
+            current_mode = st.session_state.get("fill_mode", fill_mode)
+
             for field, value, entity_type, status, confidence in fields:
-                filled = value is not None
+                filled = value is not None and value != ""
                 disp_val = str(value) if filled else ""
                 conf_text = (
-                    f"{confidence}% confidence"
-                    if confidence > 0
-                    else "Not found in Knowledge Base"
+                    f"{confidence}% confidence" if confidence > 0 else "Not found"
                 )
                 conf_color = (
                     "#a5d6a7"
@@ -223,7 +322,7 @@ with col_right:
                     unsafe_allow_html=True,
                 )
 
-                if fill_mode == "Identity Locked Fill":
+                if current_mode == "Identity Locked Fill":
                     st.text_input(
                         field,
                         value=disp_val,
@@ -231,7 +330,7 @@ with col_right:
                         label_visibility="collapsed",
                         key=f"locked_{field}",
                     )
-                elif fill_mode == "Assisted Fill":
+                elif current_mode == "Assisted Fill":
                     st.text_input(
                         field,
                         value=disp_val,
@@ -261,7 +360,7 @@ with col_right:
 
             st.divider()
 
-            filled_count = sum(1 for _, v, *_ in fields if v is not None)
+            filled_count = sum(1 for _, v, *_ in fields if v)
             total_count = len(fields)
             pct = int((filled_count / total_count) * 100) if total_count else 0
 

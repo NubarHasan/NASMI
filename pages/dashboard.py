@@ -1,19 +1,41 @@
 from __future__ import annotations
 import streamlit as st
+import httpx
 from ui.style import apply_theme, page_header, badge
 from db.database import Database
 from knowledge.quality_engine import QualityEngine
-import httpx
 
 apply_theme()
 page_header("🏠", "Dashboard", "System overview — live status of your knowledge base")
 
 
-# ── Helpers ───────────────────────────────────────────
+# ── Helpers ────────────────────────────────────────────────────────────────
+
+
 def _check_ollama() -> bool:
     try:
-        r = httpx.get("http://localhost:11434", timeout=2)
+        r = httpx.get("http://192.168.0.101:11434", timeout=2)
         return r.status_code == 200
+    except Exception:
+        return False
+
+
+def _check_ocr() -> bool:
+    try:
+        import pytesseract
+
+        pytesseract.get_tesseract_version()
+        return True
+    except Exception:
+        return False
+
+
+def _check_ner() -> bool:
+    try:
+        import spacy
+
+        spacy.load("de_core_news_sm")
+        return True
     except Exception:
         return False
 
@@ -21,40 +43,37 @@ def _check_ollama() -> bool:
 def _load_stats() -> dict:
     try:
         with Database() as db:
-            total_docs = db.fetchone("SELECT COUNT(*) as c FROM documents")
-            active_entities = db.fetchone(
-                "SELECT COUNT(*) as c FROM knowledge_objects WHERE state = ?",
-                ("ACTIVE",),
-            )
+            total_docs = db.fetchone("SELECT COUNT(*) AS c FROM documents")
+            active_kb = db.fetchone("SELECT COUNT(*) AS c FROM knowledge")
             review_pending = db.fetchone(
-                "SELECT COUNT(*) as c FROM review_queue WHERE resolved = 0"
+                "SELECT COUNT(*) AS c FROM review_queue WHERE status = 'pending'"
             )
             contradictions = db.fetchone(
-                "SELECT COUNT(*) as c FROM conflicts WHERE resolved = 0"
+                "SELECT COUNT(*) AS c FROM contradictions WHERE status = 'open'"
             )
-            lifecycle_counts = db.fetchall(
-                "SELECT status, COUNT(*) as c FROM documents GROUP BY status"
+            lifecycle = db.fetchall(
+                "SELECT status, COUNT(*) AS c FROM documents GROUP BY status"
             )
             recent_events = db.fetchall(
-                "SELECT * FROM events ORDER BY timestamp DESC LIMIT 8"
+                "SELECT * FROM audit_log ORDER BY created_at DESC LIMIT 8"
             )
-            suggestions_stats = db.fetchone(
-                "SELECT COUNT(*) as c FROM system_log WHERE source = ? AND level = ?",
-                ("upload", "INFO"),
+            processed_docs = db.fetchone(
+                "SELECT COUNT(*) AS c FROM documents WHERE status = 'done'"
             )
+
         return {
             "total_docs": (total_docs or {}).get("c", 0),
-            "active_entities": (active_entities or {}).get("c", 0),
+            "active_kb": (active_kb or {}).get("c", 0),
             "review_pending": (review_pending or {}).get("c", 0),
             "contradictions": (contradictions or {}).get("c", 0),
-            "lifecycle": {r["status"]: r["c"] for r in lifecycle_counts},
+            "lifecycle": {r["status"]: r["c"] for r in lifecycle},
             "recent_events": recent_events,
-            "processed_docs": (suggestions_stats or {}).get("c", 0),
+            "processed_docs": (processed_docs or {}).get("c", 0),
         }
     except Exception:
         return {
             "total_docs": 0,
-            "active_entities": 0,
+            "active_kb": 0,
             "review_pending": 0,
             "contradictions": 0,
             "lifecycle": {},
@@ -65,8 +84,7 @@ def _load_stats() -> dict:
 
 def _load_quality() -> dict:
     try:
-        qe = QualityEngine()
-        return qe.system_summary()
+        return QualityEngine().system_summary()
     except Exception:
         return {
             "trust_score": None,
@@ -79,65 +97,61 @@ def _load_quality() -> dict:
 def _load_suggestion_stats() -> dict:
     try:
         with Database() as db:
-            total_missing = db.fetchone(
-                "SELECT COUNT(*) as c FROM entities WHERE entity_value IS NULL OR entity_value = ''"
+            total = db.fetchone("SELECT COUNT(*) AS c FROM entities")
+            missing = db.fetchone(
+                "SELECT COUNT(*) AS c FROM entities WHERE entity_value IS NULL OR entity_value = ''"
             )
-            total_entities = db.fetchone("SELECT COUNT(*) as c FROM entities")
-        total = (total_entities or {}).get("c", 0)
-        missing = (total_missing or {}).get("c", 0)
-        filled = total - missing
-        coverage = round((filled / total) * 100) if total else 0
+        t = (total or {}).get("c", 0)
+        m = (missing or {}).get("c", 0)
+        f = t - m
         return {
-            "total": total,
-            "missing": missing,
-            "filled": filled,
-            "coverage": coverage,
+            "total": t,
+            "missing": m,
+            "filled": f,
+            "coverage": round((f / t) * 100) if t else 0,
         }
     except Exception:
         return {"total": 0, "missing": 0, "filled": 0, "coverage": 0}
 
 
-# ── Load Data ─────────────────────────────────────────
+# ── Load ───────────────────────────────────────────────────────────────────
+
 stats = _load_stats()
 quality = _load_quality()
 sug_stats = _load_suggestion_stats()
 
 trust_score = quality.get("trust_score")
 quality_score = quality.get("trust_score")
-total_docs = stats["total_docs"] or None
-active_entities = stats["active_entities"] or None
-review_pending = stats["review_pending"] or None
-contradictions = stats["contradictions"] or None
 
-# ── KPI Row ───────────────────────────────────────────
+# ── KPI Row ────────────────────────────────────────────────────────────────
+
 c1, c2, c3, c4, c5, c6 = st.columns(6)
-
 c1.metric("🔒 Trust Score", f"{trust_score}%" if trust_score else "—")
-c2.metric("📄 Documents", total_docs or "—")
-c3.metric("🧠 Entities", active_entities or "—")
-c4.metric("✋ Review Queue", review_pending or "—")
-c5.metric("⚠️ Contradictions", contradictions or "—")
+c2.metric("📄 Documents", stats["total_docs"] or "—")
+c3.metric("🧠 KB Entries", stats["active_kb"] or "—")
+c4.metric("✋ Review Queue", stats["review_pending"] or "—")
+c5.metric("⚠️ Contradictions", stats["contradictions"] or "—")
 c6.metric("📊 Quality Score", f"{quality_score}%" if quality_score else "—")
 
 st.divider()
 
-# ── Main Layout ───────────────────────────────────────
+# ── Main Layout ────────────────────────────────────────────────────────────
+
 col_main, col_side = st.columns([3, 1])
 
 with col_main:
 
-    # ── Document Lifecycle ──
     st.markdown("#### 📄 Document Lifecycle")
     lc_map = stats["lifecycle"]
     lc_cols = st.columns(5)
     for col, (label, status, key) in zip(
         lc_cols,
         [
-            ("Uploaded", "new", "UPLOADED"),
-            ("Processing", "pending", "PROCESSING"),
-            ("Reviewed", "new", "REVIEWED"),
-            ("Active", "active", "ACTIVE"),
-            ("Expired", "expired", "EXPIRED"),
+            ("Uploaded", "new", "uploaded"),
+            ("Processing", "pending", "processing"),
+            ("Reviewed", "new", "reviewed"),
+            ("Active", "active", "done"),
+            ("Expired", "expired", "expired"),
         ],
     ):
         count = lc_map.get(key, 0)
@@ -152,16 +166,15 @@ with col_main:
 
     st.divider()
 
-    # ── Smart Suggestions Stats ──
     st.markdown("#### 💡 Smart Suggestions Overview")
     sg_cols = st.columns(4)
     sg_data = [
-        ("Total Entities", sug_stats["total"], "#4fc3f7", ""),
-        ("Filled Fields", sug_stats["filled"], "#a5d6a7", ""),
-        ("Missing Fields", sug_stats["missing"], "#ef9a9a", ""),
-        ("Field Coverage", f"{sug_stats['coverage']}%", "#ffcc80", ""),
+        ("Total Entities", sug_stats["total"], "#4fc3f7"),
+        ("Filled Fields", sug_stats["filled"], "#a5d6a7"),
+        ("Missing Fields", sug_stats["missing"], "#ef9a9a"),
+        ("Field Coverage", f"{sug_stats['coverage']}%", "#ffcc80"),
     ]
-    for col, (label, val, color, _) in zip(sg_cols, sg_data):
+    for col, (label, val, color) in zip(sg_cols, sg_data):
         col.markdown(
             f"<div class='nasmi-card' style='text-align:center;'>"
             f"<div style='font-size:0.7rem;color:#546e7a;text-transform:uppercase;"
@@ -174,7 +187,6 @@ with col_main:
 
     st.divider()
 
-    # ── Recent Activity ──
     st.markdown("#### 🕐 Recent Activity")
     recent = stats["recent_events"]
     if recent:
@@ -182,9 +194,9 @@ with col_main:
             st.markdown(
                 f"<div class='nasmi-card' style='display:flex;justify-content:space-between;"
                 f"align-items:center;padding:0.5rem 1rem;'>"
-                f"<span style='font-size:0.8rem;color:#4fc3f7;'>{ev.get('event_type', '—')}</span>"
-                f"<span style='font-size:0.75rem;color:#546e7a;'>{ev.get('source', '—')}</span>"
-                f"<span style='font-size:0.72rem;color:#37474f;'>{ev.get('timestamp', '—')}</span>"
+                f"<span style='font-size:0.8rem;color:#4fc3f7;'>{ev.get('action', '—')}</span>"
+                f"<span style='font-size:0.75rem;color:#546e7a;'>{ev.get('table_name', '—')}</span>"
+                f"<span style='font-size:0.72rem;color:#37474f;'>{ev.get('created_at', '—')}</span>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
@@ -198,7 +210,6 @@ with col_main:
 
     st.divider()
 
-    # ── Quality Breakdown ──
     st.markdown("#### 📊 Knowledge Quality Breakdown")
     q_cols = st.columns(3)
     q_data = [
@@ -222,9 +233,11 @@ with col_main:
 
 with col_side:
 
-    # ── System Health ──
     st.markdown("#### 🟢 System Health")
     ollama_ok = _check_ollama()
+    ocr_ok = _check_ocr()
+    ner_ok = _check_ner()
+
     try:
         with Database() as db:
             db.fetchone("SELECT 1")
@@ -234,16 +247,16 @@ with col_side:
 
     for service, ok in [
         ("Database", db_ok),
-        ("OCR Engine", False),
+        ("OCR Engine", ocr_ok),
         ("Ollama LLM", ollama_ok),
-        ("NER Engine", False),
+        ("NER Engine", ner_ok),
     ]:
         dot = "🟢" if ok else "🔴"
         color = "#a5d6a7" if ok else "#ef9a9a"
         st.markdown(
             f"<div class='nasmi-card' style='display:flex;justify-content:space-between;"
             f"align-items:center;padding:0.6rem 1rem;'>"
-            f"<span style='font-size:0.85rem;color:#90a4ae;'>{service}</span>"
+            f"<span style='font-size:0.85rem;color:{color};'>{service}</span>"
             f"<span>{dot}</span>"
             f"</div>",
             unsafe_allow_html=True,
@@ -251,16 +264,18 @@ with col_side:
 
     st.divider()
 
-    # ── Quick Actions ──
     st.markdown("#### ⚡ Quick Actions")
-    st.button("📄 Upload Document", use_container_width=True)
-    st.button("🔍 Search Knowledge", use_container_width=True)
-    st.button("✋ Review Queue", use_container_width=True)
-    st.button("📤 Export Profile", use_container_width=True)
+    if st.button("📄 Upload Document", use_container_width=True):
+        st.switch_page("pages/upload.py")
+    if st.button("🔍 Search Knowledge", use_container_width=True):
+        st.switch_page("pages/knowledge_base.py")
+    if st.button("✋ Review Queue", use_container_width=True):
+        st.switch_page("pages/review_queue.py")
+    if st.button("📤 Export Profile", use_container_width=True):
+        st.switch_page("pages/export.py")
 
     st.divider()
 
-    # ── Alerts ──
     st.markdown("#### 🔔 Alerts")
     alerts = []
     if stats["review_pending"]:

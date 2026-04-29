@@ -3,12 +3,21 @@ import streamlit as st
 from ui.style import apply_theme, page_header
 from db.database import Database
 from db.models import SettingsModel, AuditLogModel
+from core.event_bus import bus
+from core.events import Event, EventType
 
 apply_theme()
 page_header("⚙️", "Settings", "System · Identity Core · AI · Security · Preferences")
 
 _settings_model = SettingsModel()
 _audit_model = AuditLogModel()
+
+
+# ── Event Notifier ────────────────────────────────────
+def _notify(event_type: EventType) -> None:
+    bus.publish(Event(event_type=event_type))
+    if "sidebar_needs_refresh" in st.session_state:
+        st.session_state["sidebar_needs_refresh"] = True
 
 
 # ── DB Helpers ────────────────────────────────────────
@@ -232,7 +241,9 @@ with tab_general:
         key="notif_export",
     )
     st.checkbox(
-        "Show AI processing status", value=_cfg("notif_ai", "0") == "1", key="notif_ai"
+        "Show AI processing status",
+        value=_cfg("notif_ai", "0") == "1",
+        key="notif_ai",
     )
 
     st.markdown("</div>", unsafe_allow_html=True)
@@ -375,6 +386,7 @@ with tab_identity:
                     "id_lock_level": st.session_state.id_lock_level,
                 }
             )
+            _notify(EventType.IDENTITY_UPDATED)
             st.toast("Identity Core saved", icon="💾")
     with col_reset_id:
         if st.button("🔄 Reset", use_container_width=True, key="reset_identity"):
@@ -450,7 +462,7 @@ with tab_ai:
         st.multiselect(
             "OCR Languages",
             all_langs,
-            default=[l for l in saved_langs if l in all_langs],
+            default=[lang for lang in saved_langs if lang in all_langs],
             key="ocr_langs",
         )
     with col_ocr_dpi:
@@ -536,6 +548,7 @@ with tab_ai:
                     "rag_embed": st.session_state.rag_embed,
                 }
             )
+            _notify(EventType.PREDICTION_GENERATED)
             st.toast("AI settings saved", icon="💾")
 
 

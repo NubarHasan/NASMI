@@ -4,7 +4,6 @@ import spacy
 from dataclasses import dataclass, field
 from llm.ollama_client import OllamaClient
 
-
 SYSTEM_PROMPT = """You are a precise document entity extractor.
 Extract structured information from the given text and return ONLY valid JSON.
 Do not add explanations or markdown formatting."""
@@ -138,8 +137,11 @@ class NEREngine:
         try:
             prompt = ENTITY_PROMPT.format(text=text[:2000])
             raw = self.client.generate(
-                prompt, model=self.client.models[model], system=SYSTEM_PROMPT
+                prompt,
+                model=self.client.models.get(model, self.client.models["text"]),
+                system=SYSTEM_PROMPT,
             )
+
             e.raw_response = raw
             start = raw.find("{")
             end = raw.rfind("}") + 1

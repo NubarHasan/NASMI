@@ -3,6 +3,8 @@ import streamlit as st
 from ui.style import apply_theme, page_header, badge
 from db.database import Database
 from db.models import ContradictionModel, KnowledgeModel, AuditLogModel
+from core.event_bus import bus
+from core.events import Event, EventType
 
 apply_theme()
 page_header(
@@ -14,6 +16,13 @@ page_header(
 _con = ContradictionModel()
 _km = KnowledgeModel()
 _al = AuditLogModel()
+
+
+# ── Event Notifier ────────────────────────────────────
+def _notify(event_type: EventType) -> None:
+    bus.publish(Event(event_type=event_type))
+    if "sidebar_needs_refresh" in st.session_state:
+        st.session_state["sidebar_needs_refresh"] = True
 
 
 # ── DB Loaders ────────────────────────────────────────
@@ -93,6 +102,7 @@ def _keep(item: dict, value: str, label: str) -> None:
         _con.resolve(db, int(item["id"]), f"accepted:{label}")
         _km.upsert(db, str(item["field"]), value, 1.0, str(item[f"source_{label}"]))
         _al.log(db, f"keep_{label}", "contradictions", int(item["id"]), "user", value)
+    _notify(EventType.CONFLICT_DETECTED)
 
 
 def _save_manual(item: dict, value: str) -> None:
@@ -100,12 +110,14 @@ def _save_manual(item: dict, value: str) -> None:
         _con.resolve(db, int(item["id"]), "manual")
         _km.upsert(db, str(item["field"]), value, 1.0, "manual")
         _al.log(db, "manual", "contradictions", int(item["id"]), "user", value)
+    _notify(EventType.CONFLICT_DETECTED)
 
 
 def _skip(item: dict) -> None:
     with Database() as db:
         _con.resolve(db, int(item["id"]), "skipped")
         _al.log(db, "skip", "contradictions", int(item["id"]), "user", "")
+    _notify(EventType.CONFLICT_DETECTED)
 
 
 # ── Renderers ─────────────────────────────────────────
