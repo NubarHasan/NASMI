@@ -1,4 +1,5 @@
 from pathlib import Path
+import platform
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
@@ -12,22 +13,34 @@ for _dir in [DATA_DIR, UPLOAD_DIR, OUTPUT_DIR, DB_PATH.parent]:
 OLLAMA_BASE_URL = "http://192.168.0.101:11434"
 
 MODELS = {
-    "text": "llama3.2:1b",
+    "text": "mistral:latest",
     "vision": "llava:latest",
     "general": "llama3.2:latest",
     "embed": "nomic-embed-text:latest",
-    "fallback": "llama3.2:1b",
+    "fallback": "llama3.2:latest",
 }
 
 EXTRACTION = {
     "max_file_size_mb": 50,
-    "supported_formats": [".pdf", ".png", ".jpg", ".heic", ".jpeg", ".tiff", ".docx"],
+    "supported_formats": [
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".heic",
+        ".jpeg",
+        ".tiff",
+        ".docx",
+    ],
     "ocr_dpi": 300,
     "confidence_threshold": 0.85,
 }
 
 TESSERACT = {
-    "cmd": "/usr/bin/tesseract",
+    "cmd": (
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+        if platform.system() == "Windows"
+        else "/usr/bin/tesseract"
+    ),
     "langs": ["eng", "ara", "deu"],
 }
 
@@ -38,7 +51,7 @@ DB = {
 
 APP = {
     "name": "NASMI",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "debug": False,
 }
 

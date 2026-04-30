@@ -166,6 +166,8 @@ class IdentityModel:
         return db.fetchall("SELECT * FROM identity_core")
 
 
+
+
 class AuditLogModel:
 
     def log(
@@ -175,10 +177,11 @@ class AuditLogModel:
         table_name: str,
         record_id: int,
         performed_by: str,
-        details: str = "",
+        details: str = '',
     ):
         db.execute(
-            "INSERT INTO audit_log (action, table_name, record_id, performed_by, details) VALUES (?, ?, ?, ?, ?)",
+            'INSERT INTO audit_log (action, table_name, record_id, performed_by, details)'
+            ' VALUES (?, ?, ?, ?, ?)',
             (action, table_name, record_id, performed_by, details),
         )
 
@@ -187,16 +190,15 @@ class SystemLogModel:
 
     def log(self, db: Database, level: str, module: str, message: str):
         db.execute(
-            "INSERT INTO system_logs (level, module, message) VALUES (?, ?, ?)",
+            'INSERT INTO system_logs (level, module, message) VALUES (?, ?, ?)',
             (level, module, message),
         )
 
     def get_by_level(self, db: Database, level: str):
         return db.fetchall(
-            "SELECT * FROM system_logs WHERE level = ? ORDER BY created_at DESC",
+            'SELECT * FROM system_logs WHERE level = ? ORDER BY timestamp DESC',
             (level,),
         )
-
 
 class ProcessingJobModel:
 

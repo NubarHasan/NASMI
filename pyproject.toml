@@ -1,0 +1,71 @@
+[tool.pyright]
+exclude = [
+  "**/__pycache__",
+  "**/*.pyc",
+  "**/*.pyo",
+  "**/*.pyd",
+
+  "**/.env",
+  "**/.env.*",
+
+  "**/*.db",
+  "**/*.sqlite",
+  "**/*.sqlite3",
+
+  "**/.mypy_cache",
+  "**/.pytest_cache",
+  "**/.ruff_cache",
+  "**/.coverage",
+  "**/htmlcov",
+
+  "**/.vscode",
+  "**/.idea",
+
+  "**/node_modules",
+  "**/.dart_tool",
+
+  "**/build",
+  "**/dist",
+  "**/out",
+
+  "**/.*"
+]
+
+reportMissingDefaultExcludes = false
+
+
+[tool.ruff]
+exclude = [
+  ".git",
+  "__pycache__",
+  ".mypy_cache",
+  ".pytest_cache",
+  ".ruff_cache",
+  ".vscode",
+  ".idea",
+  "node_modules",
+  ".dart_tool",
+  "build",
+  "dist",
+  "out",
+  "htmlcov",
+  ".coverage"
+]
+
+
+[tool.black]
+exclude = '''
+/(
+  \.git
+  | \.mypy_cache
+  | \.pytest_cache
+  | \.ruff_cache
+  | \.vscode
+  | \.idea
+  | __pycache__
+  | node_modules
+  | build
+  | dist
+  | out
+)/
+'''
