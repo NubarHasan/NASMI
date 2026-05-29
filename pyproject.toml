@@ -1,0 +1,70 @@
+[build-system]
+requires = ["setuptools>=75.0", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "nasmi"
+version = "1.0.0"
+description = "Neural Automated Secure Management of Information"
+authors = [{ name = "Nubar Hasan", email = "nubar.hasan@hotmail.com" }]
+license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # Database
+    "sqlalchemy",
+    "alembic",
+
+    # OCR
+    "pytesseract",
+    "Pillow",
+    "pdf2image",
+    "pymupdf",
+    "python-docx",
+
+    # AI / LLM
+    "llama-cpp-python",
+    "sentence-transformers",
+    "chromadb",
+
+    # Validation
+    "schwifty",
+    "phonenumbers",
+    "email-validator",
+
+    # Export
+    "reportlab",
+    "openpyxl",
+    "jinja2",
+
+    # UI
+    "PyQt6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "ruff",
+    "mypy",
+]
+
+[project.scripts]
+nasmi = "nasmi.main:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=nasmi --cov-report=term-missing"

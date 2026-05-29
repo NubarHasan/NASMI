@@ -1,0 +1,34 @@
+# Database
+sqlalchemy
+alembic
+
+# OCR
+pytesseract
+Pillow
+pdf2image
+pymupdf
+python-docx
+
+# AI / LLM
+llama-cpp-python
+sentence-transformers
+chromadb
+
+# Validation
+schwifty
+phonenumbers
+email-validator
+
+# Export
+reportlab
+openpyxl
+jinja2
+
+# UI
+PyQt6
+
+# Dev
+pytest
+pytest-cov
+ruff
+mypy
