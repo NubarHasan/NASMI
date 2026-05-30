@@ -5,10 +5,12 @@ import uuid
 
 from core.guards import require
 from core.types import (
+    ArtifactId,
     AuditId,
     ConflictId,
     DocumentId,
     EntityId,
+    FailureId,
     FormId,
     JobId,
     KnowledgeId,
@@ -33,6 +35,8 @@ _PREFIX_TEMPLATE: str = "TPL"
 _PREFIX_ENTITY: str = "ENT"
 _PREFIX_RECORD: str = "REC"
 _PREFIX_CONFLICT: str = "CNF"
+_PREFIX_ARTIFACT: str = "ARTF"
+_PREFIX_FAILURE: str = "FAIL"
 
 _KNOWN_PREFIXES: frozenset[str] = frozenset(
     {
@@ -48,6 +52,8 @@ _KNOWN_PREFIXES: frozenset[str] = frozenset(
         _PREFIX_ENTITY,
         _PREFIX_RECORD,
         _PREFIX_CONFLICT,
+        _PREFIX_ARTIFACT,
+        _PREFIX_FAILURE,
     }
 )
 
@@ -108,6 +114,14 @@ def generate_conflict_id() -> ConflictId:
     return ConflictId(generate_id(_PREFIX_CONFLICT))
 
 
+def generate_artifact_id() -> ArtifactId:
+    return ArtifactId(generate_id(_PREFIX_ARTIFACT))
+
+
+def generate_failure_id() -> FailureId:
+    return FailureId(generate_id(_PREFIX_FAILURE))
+
+
 def is_valid_id(value: str, prefix: str) -> bool:
     if not isinstance(value, str):
         return False
@@ -166,6 +180,14 @@ def is_valid_record_id(value: str) -> bool:
 
 def is_valid_conflict_id(value: str) -> bool:
     return is_valid_id(value, _PREFIX_CONFLICT)
+
+
+def is_valid_artifact_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_ARTIFACT)
+
+
+def is_valid_failure_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_FAILURE)
 
 
 def parse_id(value: str) -> tuple[str, str]:

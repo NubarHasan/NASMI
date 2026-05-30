@@ -17,20 +17,16 @@ _DIGEST_LENGTH = 64
 GENESIS_DIGEST: str = hashlib.sha256(b"").hexdigest()
 
 
-def _new_sha256() -> Any:
-    return hashlib.new(_HASH_ALGORITHM)
-
-
 def hash_bytes(data: bytes) -> str:
     require(isinstance(data, bytes), "data must be bytes")
-    h = _new_sha256()
+    h = hashlib.sha256()
     h.update(data)
     return h.hexdigest()
 
 
 def hash_str(value: str) -> str:
     require(isinstance(value, str), "value must be a string")
-    h = _new_sha256()
+    h = hashlib.sha256()
     h.update(value.encode("utf-8"))
     return h.hexdigest()
 
@@ -38,7 +34,7 @@ def hash_str(value: str) -> str:
 def hash_file(path: Path) -> str:
     require(isinstance(path, Path), "path must be a Path")
     require(path.is_file(), f"path is not a file: {path}")
-    h = _new_sha256()
+    h = hashlib.sha256()
     with path.open("rb") as fh:
         while chunk := fh.read(_CHUNK_SIZE):
             h.update(chunk)
@@ -77,7 +73,7 @@ def hash_chain(previous_digest: str, payload_digest: str) -> str:
     assert_valid_digest(previous_digest)
     assert_valid_digest(payload_digest)
     combined = (previous_digest + payload_digest).encode("utf-8")
-    h = _new_sha256()
+    h = hashlib.sha256()
     h.update(combined)
     return h.hexdigest()
 

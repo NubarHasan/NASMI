@@ -15,6 +15,8 @@ TemplateId = NewType("TemplateId", str)
 EntityId = NewType("EntityId", str)
 RecordId = NewType("RecordId", str)
 ConflictId = NewType("ConflictId", str)
+ArtifactId = NewType("ArtifactId", str)
+FailureId = NewType("FailureId", str)
 
 HashValue: TypeAlias = str
 HMACValue: TypeAlias = str

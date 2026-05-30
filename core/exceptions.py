@@ -132,3 +132,11 @@ class PackageError(CoreError):
 
 class ExportError(CoreError):
     pass
+
+
+class FileSystemError(CoreError):
+    pass
+
+
+class TransactionError(CoreError):
+    pass

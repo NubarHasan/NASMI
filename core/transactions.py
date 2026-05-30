@@ -6,6 +6,7 @@ import uuid
 from collections.abc import Callable
 from enum import StrEnum
 from pathlib import Path
+from typing import Literal
 
 from core.exceptions import FileSystemError, TransactionError
 from core.filesystem import (
@@ -156,7 +157,7 @@ class Transaction:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: object,
-    ) -> bool:
+    ) -> Literal[False]:
         if self._state != TransactionState.OPEN:
             return False
         if exc_type is None:
