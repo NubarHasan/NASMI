@@ -14,7 +14,7 @@ from pipeline.job import Job
 from pipeline.job_queue import JobQueue
 from pipeline.job_repository import JobRepository
 from pipeline.pipeline_context import RecoveryDecision
-from pipeline.worker import Worker
+from pipeline.worker import BaseWorker
 
 _log = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class Dispatcher:
         self,
         queue: JobQueue,
         repository: JobRepository,
-        worker: Worker,
+        worker: BaseWorker,
         max_retries: int = 3,
         retry_delay: int = 30,
         poll_interval: int | float = 1.0,
@@ -34,7 +34,7 @@ class Dispatcher:
             isinstance(repository, JobRepository),
             "repository must implement JobRepository",
         )
-        require(isinstance(worker, Worker), "worker must implement Worker")
+        require(isinstance(worker, BaseWorker), "worker must be a BaseWorker")
         require(isinstance(max_retries, int), "max_retries must be an int")
         require(isinstance(retry_delay, int), "retry_delay must be an int")
         require(
@@ -108,7 +108,7 @@ class Dispatcher:
             _log.exception("dispatch failed for job %r", job_id)
             if job is not None:
                 self._record_dispatch_failure(job, exc)
-                job.mark_failed()
+                job.fail()
                 self._repository.save(job)
             try:
                 self._queue.fail(job_id)
@@ -137,7 +137,7 @@ class Dispatcher:
             )
             return
 
-        job.mark_failed()
+        job.fail()
         self._queue.fail(job_id)
         self._repository.save(job)
         _log.warning("job %r failed (decision=%s)", job_id, decision.value)
