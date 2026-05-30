@@ -62,281 +62,73 @@ class MissingConfigurationError(ConfigurationError):
     pass
 
 
-class InitializationError(CoreError):
+class ValidationError(CoreError):
     pass
 
 
-class StartupError(CoreError):
+class StateError(CoreError):
     pass
 
 
-class ArchiveError(NasmiError):
+class NotFoundError(CoreError):
     pass
 
 
-class DuplicateDocumentError(ArchiveError):
+class AlreadyExistsError(CoreError):
     pass
 
 
-class UnsupportedFileTypeError(ArchiveError):
+class PermissionError(CoreError):
     pass
 
 
-class FileSizeLimitError(ArchiveError):
+class StorageError(CoreError):
     pass
 
 
-class FileHashMismatchError(ArchiveError):
+class DatabaseError(CoreError):
     pass
 
 
-class OCRError(NasmiError):
+class IntegrityError(CoreError):
     pass
 
 
-class OCRLowConfidenceError(OCRError):
+class ArchiveError(CoreError):
     pass
 
 
-class OCRPreprocessingError(OCRError):
+class ProcessingError(CoreError):
     pass
 
 
-class OCREngineError(OCRError):
+class PipelineError(CoreError):
     pass
 
 
-class OCRLanguageError(OCRError):
+class LockError(CoreError):
     pass
 
 
-class ExtractionError(NasmiError):
+class TimeoutError(CoreError):
     pass
 
 
-class FieldExtractionError(ExtractionError):
+class RetryError(CoreError):
     pass
 
 
-class ExtractionLowConfidenceError(ExtractionError):
+class AuditError(CoreError):
     pass
 
 
-class ValidationError(NasmiError):
+class KnowledgeError(CoreError):
     pass
 
 
-class FieldValidationError(ValidationError):
+class PackageError(CoreError):
     pass
 
 
-class ValidationRuleError(ValidationError):
-    pass
-
-
-class ReviewError(NasmiError):
-    pass
-
-
-class ConflictError(ReviewError):
-    pass
-
-
-class ReviewAlreadyClosedError(ReviewError):
-    pass
-
-
-class ReviewDecisionError(ReviewError):
-    pass
-
-
-class ReviewConflictResolutionError(ReviewError):
-    pass
-
-
-class KnowledgeError(NasmiError):
-    pass
-
-
-class KnowledgeNotFoundError(KnowledgeError):
-    pass
-
-
-class ProvenanceError(KnowledgeError):
-    pass
-
-
-class KnowledgeConflictError(KnowledgeError):
-    pass
-
-
-class KnowledgeVersionError(KnowledgeError):
-    pass
-
-
-class FormsError(NasmiError):
-    pass
-
-
-class AutofillError(FormsError):
-    pass
-
-
-class FormGenerationError(FormsError):
-    pass
-
-
-class FormFieldMissingError(FormsError):
-    pass
-
-
-class TemplateNotFoundError(FormsError):
-    pass
-
-
-class PackageError(NasmiError):
-    pass
-
-
-class MissingDocumentError(PackageError):
-    pass
-
-
-class PackageBuildError(PackageError):
-    pass
-
-
-class PackageExportError(PackageError):
-    pass
-
-
-class PackageValidationError(PackageError):
-    pass
-
-
-class AuditError(NasmiError):
-    pass
-
-
-class ChainIntegrityError(AuditError):
-    pass
-
-
-class AuditEventError(AuditError):
-    pass
-
-
-class AIError(NasmiError):
-    pass
-
-
-class ModelNotFoundError(AIError):
-    pass
-
-
-class ModelLoadError(AIError):
-    pass
-
-
-class AIInferenceError(AIError):
-    pass
-
-
-class AIBoundaryViolationError(AIError):
-    pass
-
-
-class StorageError(NasmiError):
-    pass
-
-
-class StorageFileNotFoundError(StorageError):
-    pass
-
-
-class FileWriteError(StorageError):
-    pass
-
-
-class DirectoryError(StorageError):
-    pass
-
-
-class SecurityError(NasmiError):
-    pass
-
-
-class IntegrityViolationError(SecurityError):
-    pass
-
-
-class HMACVerificationError(SecurityError):
-    pass
-
-
-class SignatureVerificationError(SecurityError):
-    pass
-
-
-class PermissionDeniedError(SecurityError):
-    pass
-
-
-class HealthError(NasmiError):
-    pass
-
-
-class HealthCheckFailedError(HealthError):
-    pass
-
-
-class PipelineError(NasmiError):
-    pass
-
-
-class JobError(PipelineError):
-    pass
-
-
-class JobTimeoutError(PipelineError):
-    pass
-
-
-class JobCancelledError(PipelineError):
-    pass
-
-
-class QueueOverflowError(PipelineError):
-    pass
-
-
-class PipelineAbortError(PipelineError):
-    pass
-
-
-class DatabaseError(NasmiError):
-    pass
-
-
-class DatabaseConnectionError(DatabaseError):
-    pass
-
-
-class RecordNotFoundError(DatabaseError):
-    pass
-
-
-class RecordIntegrityError(DatabaseError):
-    pass
-
-
-class DuplicateRecordError(DatabaseError):
-    pass
-
-
-class TransactionError(DatabaseError):
-    pass
-
-
-class MigrationError(DatabaseError):
+class ExportError(CoreError):
     pass

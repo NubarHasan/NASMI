@@ -1,35 +1,52 @@
-from core.logging import get_logger, initialize_logging
-from core.paths import paths
-from core.settings import settings
+from __future__ import annotations
 
-logger = get_logger("startup")
+from core.logging import configure_logging, get_app_logger
+from core.paths import (
+    ARCHIVE_DIR,
+    CONFIG_DIR,
+    DATA_DIR,
+    EXPORTS_DIR,
+    EXTRACTION_DIR,
+    FORMS_DIR,
+    KNOWLEDGE_DIR,
+    LOGS_DIR,
+    MODELS_DIR,
+    OCR_DIR,
+    PACKAGES_DIR,
+    RECORDS_DIR,
+    REVIEW_DIR,
+    TEMP_DIR,
+    TEMPLATES_DIR,
+    VAULT_DIR,
+)
+
+_REQUIRED_DIRS = (
+    DATA_DIR,
+    LOGS_DIR,
+    TEMP_DIR,
+    CONFIG_DIR,
+    ARCHIVE_DIR,
+    OCR_DIR,
+    EXTRACTION_DIR,
+    REVIEW_DIR,
+    KNOWLEDGE_DIR,
+    RECORDS_DIR,
+    PACKAGES_DIR,
+    EXPORTS_DIR,
+    FORMS_DIR,
+    TEMPLATES_DIR,
+    MODELS_DIR,
+    VAULT_DIR,
+)
 
 
 def _create_directories() -> None:
-    for directory in paths.directories:
+    for directory in _REQUIRED_DIRS:
         directory.mkdir(parents=True, exist_ok=True)
-        logger.debug("Directory ready: %s", directory)
 
 
-def _verify_structure() -> None:
-    missing = [d for d in paths.directories if not d.exists()]
-    if missing:
-        for directory in missing:
-            logger.error("Missing directory: %s", directory)
-        raise RuntimeError("Project structure verification failed")
-    logger.debug("Project structure verified")
-
-
-def _startup_banner() -> None:
-    logger.info("=" * 52)
-    logger.info("  %s  v%s", settings.app.name, settings.app.version)
-    logger.info("  %s", settings.app.description)
-    logger.info("  Root: %s", paths.root)
-    logger.info("=" * 52)
-
-
-def run() -> None:
-    initialize_logging()
+def bootstrap() -> None:
+    configure_logging()
     _create_directories()
-    _verify_structure()
-    _startup_banner()
+    logger = get_app_logger().bind(component="startup")
+    logger.info("NASMI bootstrap complete")
