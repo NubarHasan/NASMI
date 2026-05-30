@@ -1,58 +1,115 @@
-from enum import Enum
+from enum import StrEnum
 
 APP_NAME = "NASMI"
 APP_FULL_NAME = "Neural Automated Secure Management of Information"
 APP_VERSION = "1.0.0"
 PROJECT_AUTHOR = "Nubar Hasan"
 
+API_VERSION = "v1"
+SCHEMA_VERSION = "1.0"
+KNOWLEDGE_VERSION = "1"
+PACKAGE_VERSION = "1"
+
 DATABASE_FILENAME = "nasmi.db"
-AUDIT_FILENAME = "audit.log"
-DOCUMENTS_DIRNAME = "documents"
-EXPORTS_DIRNAME = "exports"
-TEMP_DIRNAME = "temp"
-LLM_DIRNAME = "llm"
-VECTORS_DIRNAME = "vectors"
+DATABASE_TIMEOUT = 30
 
-MAX_FILE_SIZE_MB = 50
-MAX_BATCH_SIZE = 200
-
-DEFAULT_LANGUAGE = "de"
-DEFAULT_LLM_CONTEXT_LENGTH = 8192
-
-DEFAULT_HASH_ALGORITHM = "sha256"
+HASH_ALGORITHM = "sha256"
 AUDIT_CHAIN_VERSION = 1
 
-SQLITE_WAL_MODE = "WAL"
-SQLITE_FOREIGN_KEYS = True
+UUID_LENGTH = 36
+MAX_FILE_SIZE = 50 * 1024 * 1024
+MAX_BATCH_SIZE = 100
+MAX_FILENAME_LENGTH = 255
+DEFAULT_CHUNK_SIZE = 8192
+
+DEFAULT_LANGUAGE = "deu"
+DEFAULT_ENCODING = "utf-8"
+DEFAULT_TIMEZONE = "UTC"
+DEFAULT_DATE_FORMAT = "%Y-%m-%d"
+DEFAULT_TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+
+DEFAULT_LLM_CONTEXT_LENGTH = 8192
+DEFAULT_LLM_THREADS = 4
+DEFAULT_LLM_TEMPERATURE = 0.1
 
 SUPPORTED_EXTENSIONS = frozenset(
     {
         ".pdf",
-        ".docx",
         ".png",
         ".jpg",
         ".jpeg",
         ".tiff",
+        ".tif",
         ".bmp",
         ".webp",
+        ".docx",
+        ".xlsx",
+        ".csv",
+        ".json",
+        ".xml",
     }
 )
 
+SUPPORTED_MIME_TYPES = frozenset(
+    {
+        "application/pdf",
+        "image/png",
+        "image/jpeg",
+        "image/tiff",
+        "image/bmp",
+        "image/webp",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "text/csv",
+        "application/json",
+        "application/xml",
+    }
+)
 
-class DocumentType(str, Enum):
+CONFIDENCE_THRESHOLDS: dict[str, float] = {
+    "ocr": 0.80,
+    "extraction": 0.75,
+    "validation": 0.90,
+    "autofill": 0.85,
+}
+
+
+class DocumentType(StrEnum):
     PASSPORT = "passport"
     RESIDENCE_PERMIT = "residence_permit"
-    PAYSLIP = "payslip"
-    EMPLOYMENT_CONTRACT = "employment_contract"
-    UNIVERSITY_CERTIFICATE = "university_certificate"
+    RESIDENCE_DECISION = "residence_decision"
+    RESIDENCE_REGISTRATION = "residence_registration"
+    NATIONAL_ID = "national_id"
+    DRIVING_LICENSE = "driving_license"
+    VEHICLE_DOCUMENT = "vehicle_document"
     TAX_DOCUMENT = "tax_document"
+    TAX_ASSESSMENT = "tax_assessment"
     INSURANCE_DOCUMENT = "insurance_document"
+    INSURANCE_POLICY = "insurance_policy"
+    EMPLOYMENT_CONTRACT = "employment_contract"
+    EMPLOYMENT_REFERENCE = "employment_reference"
+    PAYSLIP = "payslip"
     BANK_STATEMENT = "bank_statement"
+    BANK_CARD = "bank_card"
+    UTILITY_BILL = "utility_bill"
+    RENTAL_CONTRACT = "rental_contract"
+    UNIVERSITY_CERTIFICATE = "university_certificate"
+    DEGREE_CERTIFICATE = "degree_certificate"
+    LANGUAGE_CERTIFICATE = "language_certificate"
+    TRANSCRIPT = "transcript"
+    CV = "cv"
+    MARRIAGE_CERTIFICATE = "marriage_certificate"
+    BIRTH_CERTIFICATE = "birth_certificate"
+    MEDICAL_DOCUMENT = "medical_document"
+    COURT_DOCUMENT = "court_document"
     INVOICE = "invoice"
+    FORM = "form"
+    APPLICATION = "application"
+    OTHER = "other"
     UNKNOWN = "unknown"
 
 
-class DocumentStatus(str, Enum):
+class DocumentStatus(StrEnum):
     IMPORTED = "imported"
     CLASSIFIED = "classified"
     OCR_COMPLETED = "ocr_completed"
@@ -65,131 +122,80 @@ class DocumentStatus(str, Enum):
     FAILED = "failed"
 
 
-class PipelineStatus(str, Enum):
+class ReviewStatus(StrEnum):
     PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
+    OPEN = "open"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    EDITED = "edited"
+    ESCALATED = "escalated"
 
 
-class ReviewStatus(str, Enum):
-    PENDING = "pending"
-    IN_REVIEW = "in_review"
-    COMPLETED = "completed"
-
-
-class ReviewDecision(str, Enum):
+class ReviewDecision(StrEnum):
     ACCEPTED = "accepted"
     REJECTED = "rejected"
     EDITED = "edited"
     DEFERRED = "deferred"
 
 
-class ConflictStatus(str, Enum):
+class ConflictStatus(StrEnum):
     OPEN = "open"
+    IN_REVIEW = "in_review"
     RESOLVED = "resolved"
+    REJECTED = "rejected"
     IGNORED = "ignored"
 
 
-class KnowledgeSourceType(str, Enum):
+class PackageStatus(StrEnum):
+    DRAFT = "draft"
+    BUILDING = "building"
+    READY = "ready"
+    EXPORTED = "exported"
+    ARCHIVED = "archived"
+    ERROR = "error"
+
+
+class JobStatus(StrEnum):
+    PENDING = "pending"
+    QUEUED = "queued"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class PipelineStatus(StrEnum):
+    IDLE = "idle"
+    RUNNING = "running"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class KnowledgeStatus(StrEnum):
+    PENDING = "pending"
+    VERIFIED = "verified"
+    SUPERSEDED = "superseded"
+    ARCHIVED = "archived"
+
+
+class KnowledgeSourceType(StrEnum):
     DOCUMENT = "document"
     USER_INPUT = "user_input"
     AI_SUGGESTION = "ai_suggestion"
+    IMPORT = "import"
 
 
-class CoreField(str, Enum):
-    FIRST_NAME = "first_name"
-    LAST_NAME = "last_name"
-    FULL_NAME = "full_name"
-    DATE_OF_BIRTH = "date_of_birth"
-    PLACE_OF_BIRTH = "place_of_birth"
-    NATIONALITY = "nationality"
-    GENDER = "gender"
-    ADDRESS = "address"
-    STREET = "street"
-    CITY = "city"
-    POSTAL_CODE = "postal_code"
-    COUNTRY = "country"
-    PHONE = "phone"
-    EMAIL = "email"
-    IBAN = "iban"
-    TAX_NUMBER = "tax_number"
-    SOCIAL_SECURITY_NUMBER = "social_security_number"
-    PASSPORT_NUMBER = "passport_number"
-    RESIDENCE_PERMIT_NUMBER = "residence_permit_number"
-    EMPLOYER_NAME = "employer_name"
-    JOB_TITLE = "job_title"
-    EMPLOYMENT_START = "employment_start"
-    EMPLOYMENT_END = "employment_end"
-    SALARY = "salary"
-    UNIVERSITY_NAME = "university_name"
-    DEGREE = "degree"
-    FIELD_OF_STUDY = "field_of_study"
-    GRADUATION_DATE = "graduation_date"
-    INSURANCE_NUMBER = "insurance_number"
-    INSURANCE_PROVIDER = "insurance_provider"
-
-
-class ValidationType(str, Enum):
-    EMAIL = "email"
-    PHONE = "phone"
-    IBAN = "iban"
-    DATE = "date"
-    DOCUMENT_DATE = "document_date"
-    TAX_NUMBER = "tax_number"
-    POSTAL_CODE = "postal_code"
-    PASSPORT_NUMBER = "passport_number"
-    RESIDENCE_PERMIT_NUMBER = "residence_permit_number"
-    INSURANCE_NUMBER = "insurance_number"
-    SALARY = "salary"
-
-
-class AuditEvent(str, Enum):
-    DOCUMENT_IMPORTED = "document_imported"
-    DOCUMENT_CLASSIFIED = "document_classified"
-    DOCUMENT_DEDUPLICATED = "document_deduplicated"
-    OCR_COMPLETED = "ocr_completed"
-    EXTRACTION_COMPLETED = "extraction_completed"
-    VALIDATION_COMPLETED = "validation_completed"
-    CONFLICT_CREATED = "conflict_created"
-    CONFLICT_RESOLVED = "conflict_resolved"
-    REVIEW_CREATED = "review_created"
-    USER_ACCEPTED = "user_accepted"
-    USER_REJECTED = "user_rejected"
-    USER_EDITED = "user_edited"
-    USER_DEFERRED = "user_deferred"
-    KNOWLEDGE_CREATED = "knowledge_created"
-    KNOWLEDGE_MODIFIED = "knowledge_modified"
-    KNOWLEDGE_UPDATED = "knowledge_updated"
-    FORM_GENERATED = "form_generated"
-    EXPORT_GENERATED = "export_generated"
-    PACKAGE_CREATED = "package_created"
-    PACKAGE_EXPORTED = "package_exported"
-
-
-class ExportFormat(str, Enum):
-    PDF = "pdf"
-    JSON = "json"
-    CSV = "csv"
-    XML = "xml"
-
-
-class ConfidenceLevel(str, Enum):
+class ConfidenceLevel(StrEnum):
     NONE = "none"
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
+    VERIFIED = "verified"
 
 
-CONFIDENCE_THRESHOLDS: dict[ConfidenceLevel, float] = {
-    ConfidenceLevel.HIGH: 0.85,
-    ConfidenceLevel.MEDIUM: 0.60,
-    ConfidenceLevel.LOW: 0.30,
-    ConfidenceLevel.NONE: 0.0,
-}
-
-
-class CollectionType(str, Enum):
+class CollectionType(StrEnum):
     IDENTITY = "identity"
     EDUCATION = "education"
     EMPLOYMENT = "employment"
@@ -198,11 +204,99 @@ class CollectionType(str, Enum):
     BANKING = "banking"
     HOUSING = "housing"
     LEGAL = "legal"
+    IMMIGRATION = "immigration"
+    UNIVERSITY = "university"
     FORMS = "forms"
     OTHER = "other"
 
 
-class PackageStatus(str, Enum):
-    DRAFT = "draft"
-    READY = "ready"
-    EXPORTED = "exported"
+class ExportFormat(StrEnum):
+    PDF = "pdf"
+    JSON = "json"
+    CSV = "csv"
+    XML = "xml"
+
+
+class AIModelRole(StrEnum):
+    OCR_ASSISTANT = "ocr_assistant"
+    CLASSIFICATION_ASSISTANT = "classification_assistant"
+    EXTRACTION_ASSISTANT = "extraction_assistant"
+    KNOWLEDGE_ASSISTANT = "knowledge_assistant"
+    FORM_ASSISTANT = "form_assistant"
+    ARCHIVE_ASSISTANT = "archive_assistant"
+
+
+class ValidationType(StrEnum):
+    EMAIL = "email"
+    PHONE = "phone"
+    IBAN = "iban"
+    DATE = "date"
+    POSTAL_CODE = "postal_code"
+    TAX_NUMBER = "tax_number"
+    PASSPORT_NUMBER = "passport_number"
+    RESIDENCE_PERMIT_NUMBER = "residence_permit_number"
+    INSURANCE_NUMBER = "insurance_number"
+    BANK_ACCOUNT = "bank_account"
+
+
+class SystemComponent(StrEnum):
+    CORE = "core"
+    ARCHIVE = "archive"
+    OCR = "ocr"
+    EXTRACTION = "extraction"
+    VALIDATION = "validation"
+    REVIEW = "review"
+    KNOWLEDGE = "knowledge"
+    FORMS = "forms"
+    PACKAGES = "packages"
+    AUDIT = "audit"
+    AI = "ai"
+    STORAGE = "storage"
+    DATABASE = "database"
+    API = "api"
+    UI = "ui"
+
+
+class EntityType(StrEnum):
+    DOCUMENT = "document"
+    FIELD = "field"
+    REVIEW = "review"
+    CONFLICT = "conflict"
+    KNOWLEDGE = "knowledge"
+    PACKAGE = "package"
+    FORM = "form"
+    AUDIT_EVENT = "audit_event"
+    JOB = "job"
+
+
+class SeverityLevel(StrEnum):
+    DEBUG = "debug"
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+    CRITICAL = "critical"
+
+
+class AuditEvent(StrEnum):
+    DOCUMENT_IMPORTED = "document_imported"
+    DOCUMENT_DEDUPLICATED = "document_deduplicated"
+    OCR_COMPLETED = "ocr_completed"
+    EXTRACTION_COMPLETED = "extraction_completed"
+    VALIDATION_COMPLETED = "validation_completed"
+    CONFLICT_CREATED = "conflict_created"
+    CONFLICT_RESOLVED = "conflict_resolved"
+    REVIEW_CREATED = "review_created"
+    REVIEW_ACCEPTED = "review_accepted"
+    REVIEW_REJECTED = "review_rejected"
+    REVIEW_EDITED = "review_edited"
+    USER_ACCEPTED = "user_accepted"
+    USER_REJECTED = "user_rejected"
+    USER_EDITED = "user_edited"
+    USER_DEFERRED = "user_deferred"
+    KNOWLEDGE_CREATED = "knowledge_created"
+    KNOWLEDGE_UPDATED = "knowledge_updated"
+    KNOWLEDGE_SUPERSEDED = "knowledge_superseded"
+    FORM_GENERATED = "form_generated"
+    PACKAGE_CREATED = "package_created"
+    PACKAGE_EXPORTED = "package_exported"
+    EXPORT_GENERATED = "export_generated"

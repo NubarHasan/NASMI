@@ -1,0 +1,186 @@
+from __future__ import annotations
+
+import re
+import uuid
+
+from core.guards import require
+from core.types import (
+    AuditId,
+    ConflictId,
+    DocumentId,
+    EntityId,
+    FormId,
+    JobId,
+    KnowledgeId,
+    PackageId,
+    RecordId,
+    ReviewId,
+    TemplateId,
+    UserId,
+)
+
+_ID_PATTERN: re.Pattern[str] = re.compile(r"^[A-Z]+-[0-9A-F]{32}$")
+
+_PREFIX_DOCUMENT: str = "DOC"
+_PREFIX_REVIEW: str = "REV"
+_PREFIX_KNOWLEDGE: str = "KNW"
+_PREFIX_PACKAGE: str = "PKG"
+_PREFIX_JOB: str = "JOB"
+_PREFIX_USER: str = "USR"
+_PREFIX_AUDIT: str = "AUD"
+_PREFIX_FORM: str = "FRM"
+_PREFIX_TEMPLATE: str = "TPL"
+_PREFIX_ENTITY: str = "ENT"
+_PREFIX_RECORD: str = "REC"
+_PREFIX_CONFLICT: str = "CNF"
+
+_KNOWN_PREFIXES: frozenset[str] = frozenset(
+    {
+        _PREFIX_DOCUMENT,
+        _PREFIX_REVIEW,
+        _PREFIX_KNOWLEDGE,
+        _PREFIX_PACKAGE,
+        _PREFIX_JOB,
+        _PREFIX_USER,
+        _PREFIX_AUDIT,
+        _PREFIX_FORM,
+        _PREFIX_TEMPLATE,
+        _PREFIX_ENTITY,
+        _PREFIX_RECORD,
+        _PREFIX_CONFLICT,
+    }
+)
+
+
+def generate_id(prefix: str) -> str:
+    require(bool(prefix), "prefix must not be empty")
+    require(prefix == prefix.upper(), "prefix must be uppercase")
+    require(prefix in _KNOWN_PREFIXES, f"unknown prefix: {prefix}")
+    body = uuid.uuid4().hex.upper()
+    return f"{prefix}-{body}"
+
+
+def generate_document_id() -> DocumentId:
+    return DocumentId(generate_id(_PREFIX_DOCUMENT))
+
+
+def generate_review_id() -> ReviewId:
+    return ReviewId(generate_id(_PREFIX_REVIEW))
+
+
+def generate_knowledge_id() -> KnowledgeId:
+    return KnowledgeId(generate_id(_PREFIX_KNOWLEDGE))
+
+
+def generate_package_id() -> PackageId:
+    return PackageId(generate_id(_PREFIX_PACKAGE))
+
+
+def generate_job_id() -> JobId:
+    return JobId(generate_id(_PREFIX_JOB))
+
+
+def generate_user_id() -> UserId:
+    return UserId(generate_id(_PREFIX_USER))
+
+
+def generate_audit_id() -> AuditId:
+    return AuditId(generate_id(_PREFIX_AUDIT))
+
+
+def generate_form_id() -> FormId:
+    return FormId(generate_id(_PREFIX_FORM))
+
+
+def generate_template_id() -> TemplateId:
+    return TemplateId(generate_id(_PREFIX_TEMPLATE))
+
+
+def generate_entity_id() -> EntityId:
+    return EntityId(generate_id(_PREFIX_ENTITY))
+
+
+def generate_record_id() -> RecordId:
+    return RecordId(generate_id(_PREFIX_RECORD))
+
+
+def generate_conflict_id() -> ConflictId:
+    return ConflictId(generate_id(_PREFIX_CONFLICT))
+
+
+def is_valid_id(value: str, prefix: str) -> bool:
+    if not isinstance(value, str):
+        return False
+    if not isinstance(prefix, str):
+        return False
+    if prefix not in _KNOWN_PREFIXES:
+        return False
+    if not _ID_PATTERN.match(value):
+        return False
+    return value.startswith(f"{prefix}-")
+
+
+def is_valid_document_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_DOCUMENT)
+
+
+def is_valid_review_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_REVIEW)
+
+
+def is_valid_knowledge_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_KNOWLEDGE)
+
+
+def is_valid_package_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_PACKAGE)
+
+
+def is_valid_job_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_JOB)
+
+
+def is_valid_user_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_USER)
+
+
+def is_valid_audit_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_AUDIT)
+
+
+def is_valid_form_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_FORM)
+
+
+def is_valid_template_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_TEMPLATE)
+
+
+def is_valid_entity_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_ENTITY)
+
+
+def is_valid_record_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_RECORD)
+
+
+def is_valid_conflict_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_CONFLICT)
+
+
+def parse_id(value: str) -> tuple[str, str]:
+    require(isinstance(value, str), "value must be a string")
+    require(_ID_PATTERN.match(value) is not None, f"invalid id format: {value!r}")
+    prefix, body = value.split("-", 1)
+    require(prefix in _KNOWN_PREFIXES, f"unknown prefix: {prefix!r}")
+    return prefix, body
+
+
+def get_id_prefix(value: str) -> str:
+    prefix, _ = parse_id(value)
+    return prefix
+
+
+def get_id_body(value: str) -> str:
+    _, body = parse_id(value)
+    return body
