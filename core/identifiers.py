@@ -14,7 +14,10 @@ from core.types import (
     FactEvidenceId,
     FactId,
     FailureId,
+    FormFieldId,
     FormId,
+    FormSubmissionId,
+    FormTemplateId,
     JobId,
     KnowledgeId,
     PackageId,
@@ -23,7 +26,6 @@ from core.types import (
     RecordId,
     ReviewId,
     SourceId,
-    TemplateId,
     UserId,
     VaultId,
 )
@@ -38,7 +40,6 @@ _PREFIX_JOB: str = "JOB"
 _PREFIX_USER: str = "USR"
 _PREFIX_AUDIT: str = "AUD"
 _PREFIX_FORM: str = "FRM"
-_PREFIX_TEMPLATE: str = "TPL"
 _PREFIX_ENTITY: str = "ENT"
 _PREFIX_RECORD: str = "REC"
 _PREFIX_CONFLICT: str = "CNF"
@@ -51,6 +52,9 @@ _PREFIX_FACT_EVIDENCE: str = "FEV"
 _PREFIX_PROVENANCE: str = "PRV"
 _PREFIX_PROFILE: str = "PRF"
 _PREFIX_VAULT: str = "VLT"
+_PREFIX_FORM_FIELD: str = "FFD"
+_PREFIX_FORM_TEMPLATE: str = "FTP"
+_PREFIX_FORM_SUBMISSION: str = "FSB"
 
 _KNOWN_PREFIXES: frozenset[str] = frozenset(
     {
@@ -62,7 +66,6 @@ _KNOWN_PREFIXES: frozenset[str] = frozenset(
         _PREFIX_USER,
         _PREFIX_AUDIT,
         _PREFIX_FORM,
-        _PREFIX_TEMPLATE,
         _PREFIX_ENTITY,
         _PREFIX_RECORD,
         _PREFIX_CONFLICT,
@@ -75,6 +78,9 @@ _KNOWN_PREFIXES: frozenset[str] = frozenset(
         _PREFIX_PROVENANCE,
         _PREFIX_PROFILE,
         _PREFIX_VAULT,
+        _PREFIX_FORM_FIELD,
+        _PREFIX_FORM_TEMPLATE,
+        _PREFIX_FORM_SUBMISSION,
     }
 )
 
@@ -117,10 +123,6 @@ def generate_audit_id() -> AuditId:
 
 def generate_form_id() -> FormId:
     return FormId(generate_id(_PREFIX_FORM))
-
-
-def generate_template_id() -> TemplateId:
-    return TemplateId(generate_id(_PREFIX_TEMPLATE))
 
 
 def generate_entity_id() -> EntityId:
@@ -171,6 +173,18 @@ def generate_vault_id() -> VaultId:
     return VaultId(generate_id(_PREFIX_VAULT))
 
 
+def generate_form_field_id() -> FormFieldId:
+    return FormFieldId(generate_id(_PREFIX_FORM_FIELD))
+
+
+def generate_form_template_id() -> FormTemplateId:
+    return FormTemplateId(generate_id(_PREFIX_FORM_TEMPLATE))
+
+
+def generate_form_submission_id() -> FormSubmissionId:
+    return FormSubmissionId(generate_id(_PREFIX_FORM_SUBMISSION))
+
+
 def is_valid_id(value: str, prefix: str) -> bool:
     if not isinstance(value, str):
         return False
@@ -213,10 +227,6 @@ def is_valid_audit_id(value: str) -> bool:
 
 def is_valid_form_id(value: str) -> bool:
     return is_valid_id(value, _PREFIX_FORM)
-
-
-def is_valid_template_id(value: str) -> bool:
-    return is_valid_id(value, _PREFIX_TEMPLATE)
 
 
 def is_valid_entity_id(value: str) -> bool:
@@ -265,6 +275,18 @@ def is_valid_profile_id(value: str) -> bool:
 
 def is_valid_vault_id(value: str) -> bool:
     return is_valid_id(value, _PREFIX_VAULT)
+
+
+def is_valid_form_field_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_FORM_FIELD)
+
+
+def is_valid_form_template_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_FORM_TEMPLATE)
+
+
+def is_valid_form_submission_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_FORM_SUBMISSION)
 
 
 def parse_id(value: str) -> tuple[str, str]:

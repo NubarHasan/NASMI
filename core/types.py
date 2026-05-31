@@ -11,7 +11,6 @@ JobId = NewType("JobId", str)
 UserId = NewType("UserId", str)
 AuditId = NewType("AuditId", str)
 FormId = NewType("FormId", str)
-TemplateId = NewType("TemplateId", str)
 EntityId = NewType("EntityId", str)
 RecordId = NewType("RecordId", str)
 ConflictId = NewType("ConflictId", str)
@@ -24,6 +23,9 @@ FactEvidenceId = NewType("FactEvidenceId", str)
 ProvenanceId = NewType("ProvenanceId", str)
 ProfileId = NewType("ProfileId", str)
 VaultId = NewType("VaultId", str)
+FormFieldId = NewType("FormFieldId", str)
+FormTemplateId = NewType("FormTemplateId", str)
+FormSubmissionId = NewType("FormSubmissionId", str)
 
 HashValue: TypeAlias = str
 HMACValue: TypeAlias = str
