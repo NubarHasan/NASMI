@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Protocol, cast
+from typing import Any, Protocol
 
 from core.exceptions import ValidationError
 from core.guards import require

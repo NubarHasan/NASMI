@@ -10,15 +10,22 @@ from core.types import (
     ConflictId,
     DocumentId,
     EntityId,
+    EvidenceId,
+    FactEvidenceId,
+    FactId,
     FailureId,
     FormId,
     JobId,
     KnowledgeId,
     PackageId,
+    ProfileId,
+    ProvenanceId,
     RecordId,
     ReviewId,
+    SourceId,
     TemplateId,
     UserId,
+    VaultId,
 )
 
 _ID_PATTERN: re.Pattern[str] = re.compile(r"^[A-Z]+-[0-9A-F]{32}$")
@@ -37,6 +44,13 @@ _PREFIX_RECORD: str = "REC"
 _PREFIX_CONFLICT: str = "CNF"
 _PREFIX_ARTIFACT: str = "ARTF"
 _PREFIX_FAILURE: str = "FAIL"
+_PREFIX_SOURCE: str = "SRC"
+_PREFIX_FACT: str = "FAC"
+_PREFIX_EVIDENCE: str = "EVD"
+_PREFIX_FACT_EVIDENCE: str = "FEV"
+_PREFIX_PROVENANCE: str = "PRV"
+_PREFIX_PROFILE: str = "PRF"
+_PREFIX_VAULT: str = "VLT"
 
 _KNOWN_PREFIXES: frozenset[str] = frozenset(
     {
@@ -54,6 +68,13 @@ _KNOWN_PREFIXES: frozenset[str] = frozenset(
         _PREFIX_CONFLICT,
         _PREFIX_ARTIFACT,
         _PREFIX_FAILURE,
+        _PREFIX_SOURCE,
+        _PREFIX_FACT,
+        _PREFIX_EVIDENCE,
+        _PREFIX_FACT_EVIDENCE,
+        _PREFIX_PROVENANCE,
+        _PREFIX_PROFILE,
+        _PREFIX_VAULT,
     }
 )
 
@@ -122,6 +143,34 @@ def generate_failure_id() -> FailureId:
     return FailureId(generate_id(_PREFIX_FAILURE))
 
 
+def generate_source_id() -> SourceId:
+    return SourceId(generate_id(_PREFIX_SOURCE))
+
+
+def generate_fact_id() -> FactId:
+    return FactId(generate_id(_PREFIX_FACT))
+
+
+def generate_evidence_id() -> EvidenceId:
+    return EvidenceId(generate_id(_PREFIX_EVIDENCE))
+
+
+def generate_fact_evidence_id() -> FactEvidenceId:
+    return FactEvidenceId(generate_id(_PREFIX_FACT_EVIDENCE))
+
+
+def generate_provenance_id() -> ProvenanceId:
+    return ProvenanceId(generate_id(_PREFIX_PROVENANCE))
+
+
+def generate_profile_id() -> ProfileId:
+    return ProfileId(generate_id(_PREFIX_PROFILE))
+
+
+def generate_vault_id() -> VaultId:
+    return VaultId(generate_id(_PREFIX_VAULT))
+
+
 def is_valid_id(value: str, prefix: str) -> bool:
     if not isinstance(value, str):
         return False
@@ -188,6 +237,34 @@ def is_valid_artifact_id(value: str) -> bool:
 
 def is_valid_failure_id(value: str) -> bool:
     return is_valid_id(value, _PREFIX_FAILURE)
+
+
+def is_valid_source_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_SOURCE)
+
+
+def is_valid_fact_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_FACT)
+
+
+def is_valid_evidence_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_EVIDENCE)
+
+
+def is_valid_fact_evidence_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_FACT_EVIDENCE)
+
+
+def is_valid_provenance_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_PROVENANCE)
+
+
+def is_valid_profile_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_PROFILE)
+
+
+def is_valid_vault_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_VAULT)
 
 
 def parse_id(value: str) -> tuple[str, str]:

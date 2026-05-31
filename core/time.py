@@ -49,6 +49,18 @@ def parse_timestamp(value: str) -> datetime:
     raise ValidationError(f"cannot parse timestamp: {value!r}")
 
 
+def is_valid_timestamp(value: str) -> bool:
+    if not isinstance(value, str):
+        return False
+    if not value.strip():
+        return False
+    try:
+        parse_timestamp(value)
+        return True
+    except (ValidationError, ValueError):
+        return False
+
+
 def format_timestamp(dt: datetime) -> str:
     require(isinstance(dt, datetime), "dt must be a datetime")
     return _to_utc(dt).strftime(_ISO_FORMAT)

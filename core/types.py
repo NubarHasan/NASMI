@@ -17,6 +17,13 @@ RecordId = NewType("RecordId", str)
 ConflictId = NewType("ConflictId", str)
 ArtifactId = NewType("ArtifactId", str)
 FailureId = NewType("FailureId", str)
+SourceId = NewType("SourceId", str)
+FactId = NewType("FactId", str)
+EvidenceId = NewType("EvidenceId", str)
+FactEvidenceId = NewType("FactEvidenceId", str)
+ProvenanceId = NewType("ProvenanceId", str)
+ProfileId = NewType("ProfileId", str)
+VaultId = NewType("VaultId", str)
 
 HashValue: TypeAlias = str
 HMACValue: TypeAlias = str
