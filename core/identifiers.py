@@ -7,10 +7,12 @@ from core.guards import require
 from core.types import (
     ArtifactId,
     AuditId,
+    CandidateFactId,
     ConflictId,
     DocumentId,
     EntityId,
     EvidenceId,
+    ExtractionResultId,
     FactEvidenceId,
     FactId,
     FailureId,
@@ -24,7 +26,10 @@ from core.types import (
     ProfileId,
     ProvenanceId,
     RecordId,
+    ReviewCaseId,
+    ReviewDecisionId,
     ReviewId,
+    ReviewQueueId,
     SourceId,
     UserId,
     VaultId,
@@ -34,6 +39,9 @@ _ID_PATTERN: re.Pattern[str] = re.compile(r"^[A-Z]+-[0-9A-F]{32}$")
 
 _PREFIX_DOCUMENT: str = "DOC"
 _PREFIX_REVIEW: str = "REV"
+_PREFIX_REVIEW_CASE: str = "RVC"
+_PREFIX_REVIEW_DECISION: str = "RVD"
+_PREFIX_REVIEW_QUEUE: str = "RVQ"
 _PREFIX_KNOWLEDGE: str = "KNW"
 _PREFIX_PACKAGE: str = "PKG"
 _PREFIX_JOB: str = "JOB"
@@ -55,11 +63,16 @@ _PREFIX_VAULT: str = "VLT"
 _PREFIX_FORM_FIELD: str = "FFD"
 _PREFIX_FORM_TEMPLATE: str = "FTP"
 _PREFIX_FORM_SUBMISSION: str = "FSB"
+_PREFIX_CANDIDATE_FACT: str = "CFT"
+_PREFIX_EXTRACTION_RESULT: str = "EXR"
 
 _KNOWN_PREFIXES: frozenset[str] = frozenset(
     {
         _PREFIX_DOCUMENT,
         _PREFIX_REVIEW,
+        _PREFIX_REVIEW_CASE,
+        _PREFIX_REVIEW_DECISION,
+        _PREFIX_REVIEW_QUEUE,
         _PREFIX_KNOWLEDGE,
         _PREFIX_PACKAGE,
         _PREFIX_JOB,
@@ -81,6 +94,8 @@ _KNOWN_PREFIXES: frozenset[str] = frozenset(
         _PREFIX_FORM_FIELD,
         _PREFIX_FORM_TEMPLATE,
         _PREFIX_FORM_SUBMISSION,
+        _PREFIX_CANDIDATE_FACT,
+        _PREFIX_EXTRACTION_RESULT,
     }
 )
 
@@ -93,12 +108,32 @@ def generate_id(prefix: str) -> str:
     return f"{prefix}-{body}"
 
 
+def generate_candidate_fact_id() -> CandidateFactId:
+    return CandidateFactId(generate_id(_PREFIX_CANDIDATE_FACT))
+
+
+def generate_extraction_result_id() -> ExtractionResultId:
+    return ExtractionResultId(generate_id(_PREFIX_EXTRACTION_RESULT))
+
+
 def generate_document_id() -> DocumentId:
     return DocumentId(generate_id(_PREFIX_DOCUMENT))
 
 
 def generate_review_id() -> ReviewId:
     return ReviewId(generate_id(_PREFIX_REVIEW))
+
+
+def generate_review_case_id() -> ReviewCaseId:
+    return ReviewCaseId(generate_id(_PREFIX_REVIEW_CASE))
+
+
+def generate_review_decision_id() -> ReviewDecisionId:
+    return ReviewDecisionId(generate_id(_PREFIX_REVIEW_DECISION))
+
+
+def generate_review_queue_id() -> ReviewQueueId:
+    return ReviewQueueId(generate_id(_PREFIX_REVIEW_QUEUE))
 
 
 def generate_knowledge_id() -> KnowledgeId:
@@ -197,12 +232,32 @@ def is_valid_id(value: str, prefix: str) -> bool:
     return value.startswith(f"{prefix}-")
 
 
+def is_valid_candidate_fact_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_CANDIDATE_FACT)
+
+
+def is_valid_extraction_result_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_EXTRACTION_RESULT)
+
+
 def is_valid_document_id(value: str) -> bool:
     return is_valid_id(value, _PREFIX_DOCUMENT)
 
 
 def is_valid_review_id(value: str) -> bool:
     return is_valid_id(value, _PREFIX_REVIEW)
+
+
+def is_valid_review_case_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_REVIEW_CASE)
+
+
+def is_valid_review_decision_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_REVIEW_DECISION)
+
+
+def is_valid_review_queue_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_REVIEW_QUEUE)
 
 
 def is_valid_knowledge_id(value: str) -> bool:
