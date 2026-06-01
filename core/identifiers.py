@@ -12,6 +12,7 @@ from core.types import (
     DocumentId,
     EntityId,
     EvidenceId,
+    ExtractionRequestId,
     ExtractionResultId,
     FactEvidenceId,
     FactId,
@@ -65,6 +66,7 @@ _PREFIX_FORM_TEMPLATE: str = "FTP"
 _PREFIX_FORM_SUBMISSION: str = "FSB"
 _PREFIX_CANDIDATE_FACT: str = "CFT"
 _PREFIX_EXTRACTION_RESULT: str = "EXR"
+_PREFIX_EXTRACTION_REQUEST: str = "EXQ"
 
 _KNOWN_PREFIXES: frozenset[str] = frozenset(
     {
@@ -96,6 +98,7 @@ _KNOWN_PREFIXES: frozenset[str] = frozenset(
         _PREFIX_FORM_SUBMISSION,
         _PREFIX_CANDIDATE_FACT,
         _PREFIX_EXTRACTION_RESULT,
+        _PREFIX_EXTRACTION_REQUEST,
     }
 )
 
@@ -114,6 +117,10 @@ def generate_candidate_fact_id() -> CandidateFactId:
 
 def generate_extraction_result_id() -> ExtractionResultId:
     return ExtractionResultId(generate_id(_PREFIX_EXTRACTION_RESULT))
+
+
+def generate_extraction_request_id() -> ExtractionRequestId:
+    return ExtractionRequestId(generate_id(_PREFIX_EXTRACTION_REQUEST))
 
 
 def generate_document_id() -> DocumentId:
@@ -238,6 +245,10 @@ def is_valid_candidate_fact_id(value: str) -> bool:
 
 def is_valid_extraction_result_id(value: str) -> bool:
     return is_valid_id(value, _PREFIX_EXTRACTION_RESULT)
+
+
+def is_valid_extraction_request_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_EXTRACTION_REQUEST)
 
 
 def is_valid_document_id(value: str) -> bool:
