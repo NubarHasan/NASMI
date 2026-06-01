@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import StrEnum
 from typing import Any, Protocol
 
 from core.exceptions import ValidationError
 from core.guards import require
 from core.identifiers import generate_artifact_id
-from core.time import utcnow_iso
+from core.time import format_timestamp, parse_timestamp, utcnow
 
 
 class ArtifactType(StrEnum):
@@ -32,7 +33,7 @@ class BaseArtifact:
     artifact_type: ArtifactType
     job_id: str
     stage: str
-    created_at: str
+    created_at: datetime
     source_artifact_ids: tuple[str, ...]
 
     def is_root(self) -> bool:
@@ -44,7 +45,7 @@ class BaseArtifact:
             "artifact_type": str(self.artifact_type),
             "job_id": self.job_id,
             "stage": self.stage,
-            "created_at": self.created_at,
+            "created_at": format_timestamp(self.created_at),
             "source_artifact_ids": list(self.source_artifact_ids),
         }
 
@@ -55,7 +56,7 @@ class BaseArtifact:
             "artifact_type": ArtifactType(data["artifact_type"]),
             "job_id": data["job_id"],
             "stage": data["stage"],
-            "created_at": data["created_at"],
+            "created_at": parse_timestamp(data["created_at"]),
             "source_artifact_ids": tuple(data.get("source_artifact_ids", [])),
         }
 
@@ -97,7 +98,7 @@ class DocumentArtifact(BaseArtifact):
             artifact_type=ArtifactType.DOCUMENT,
             job_id=job_id,
             stage=stage,
-            created_at=utcnow_iso(),
+            created_at=utcnow(),
             source_artifact_ids=source_artifact_ids,
             document_id=document_id,
             snapshot=copy.deepcopy(snapshot),
@@ -141,7 +142,7 @@ class EvidenceArtifact(BaseArtifact):
             artifact_type=ArtifactType.EVIDENCE,
             job_id=job_id,
             stage=stage,
-            created_at=utcnow_iso(),
+            created_at=utcnow(),
             source_artifact_ids=source_artifact_ids,
             evidence_id=evidence_id,
             snapshot=copy.deepcopy(snapshot),
@@ -190,7 +191,7 @@ class FactArtifact(BaseArtifact):
             artifact_type=ArtifactType.FACT,
             job_id=job_id,
             stage=stage,
-            created_at=utcnow_iso(),
+            created_at=utcnow(),
             source_artifact_ids=source_artifact_ids,
             fact_id=fact_id,
             entity_id=entity_id,
@@ -235,7 +236,7 @@ class ProfileArtifact(BaseArtifact):
             artifact_type=ArtifactType.PROFILE,
             job_id=job_id,
             stage=stage,
-            created_at=utcnow_iso(),
+            created_at=utcnow(),
             source_artifact_ids=source_artifact_ids,
             entity_id=entity_id,
             snapshot=copy.deepcopy(snapshot),
@@ -279,7 +280,7 @@ class IntermediateArtifact(BaseArtifact):
             artifact_type=ArtifactType.INTERMEDIATE,
             job_id=job_id,
             stage=stage,
-            created_at=utcnow_iso(),
+            created_at=utcnow(),
             source_artifact_ids=source_artifact_ids,
             key=key,
             payload=copy.deepcopy(payload),

@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
 from core.guards import require
-from core.time import utcnow_iso
+from core.time import format_timestamp, parse_timestamp, utcnow
 from pipeline.artifact import Artifact, ArtifactBundle
 from pipeline.failure import FailureCollection, PipelineFailure
 
@@ -21,7 +22,7 @@ class RecoveryDecision(StrEnum):
 @dataclass
 class PipelineContext:
     job_id: str
-    created_at: str
+    created_at: datetime
     current_stage: str
     artifacts: ArtifactBundle
     failures: FailureCollection
@@ -69,7 +70,7 @@ class PipelineContext:
     def to_dict(self) -> dict[str, Any]:
         return {
             "job_id": self.job_id,
-            "created_at": self.created_at,
+            "created_at": format_timestamp(self.created_at),
             "current_stage": self.current_stage,
             "stage_history": list(self._stage_history),
             "artifacts": self.artifacts.to_dict(),
@@ -81,7 +82,7 @@ class PipelineContext:
     def from_dict(cls, data: dict[str, Any]) -> PipelineContext:
         ctx = cls(
             job_id=data["job_id"],
-            created_at=data["created_at"],
+            created_at=parse_timestamp(data["created_at"]),
             current_stage=data.get("current_stage", ""),
             artifacts=ArtifactBundle.from_dict(data["artifacts"]),
             failures=FailureCollection.from_dict(data["failures"]),
@@ -98,7 +99,7 @@ class PipelineContext:
         require(len(job_id) > 0, "job_id must be non-empty")
         return cls(
             job_id=job_id,
-            created_at=utcnow_iso(),
+            created_at=utcnow(),
             current_stage="",
             artifacts=ArtifactBundle(job_id=job_id),
             failures=FailureCollection(job_id=job_id),

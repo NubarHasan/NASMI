@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
 from core.guards import require
 from core.identifiers import generate_failure_id
-from core.time import utcnow_iso
+from core.time import format_timestamp, parse_timestamp, utcnow
 
 
 class FailureSeverity(StrEnum):
@@ -51,7 +52,7 @@ class PipelineFailure:
     is_retryable: bool
     requires_review: bool
     artifact_ids: tuple[str, ...]
-    created_at: str
+    created_at: datetime
 
     def is_critical(self) -> bool:
         return self.severity == FailureSeverity.CRITICAL
@@ -69,7 +70,7 @@ class PipelineFailure:
             "is_retryable": self.is_retryable,
             "requires_review": self.requires_review,
             "artifact_ids": list(self.artifact_ids),
-            "created_at": self.created_at,
+            "created_at": format_timestamp(self.created_at),
         }
 
     @classmethod
@@ -86,7 +87,7 @@ class PipelineFailure:
             is_retryable=data["is_retryable"],
             requires_review=data["requires_review"],
             artifact_ids=tuple(data.get("artifact_ids", [])),
-            created_at=data["created_at"],
+            created_at=parse_timestamp(data["created_at"]),
         )
 
     @classmethod
@@ -122,7 +123,7 @@ class PipelineFailure:
             is_retryable=is_retryable,
             requires_review=requires_review,
             artifact_ids=artifact_ids,
-            created_at=utcnow_iso(),
+            created_at=utcnow(),
         )
 
 
@@ -153,7 +154,7 @@ class FailureSnapshot:
             category=str(failure.category),
             severity=str(failure.severity),
             message=failure.message,
-            created_at=failure.created_at,
+            created_at=format_timestamp(failure.created_at),
         )
 
     @classmethod

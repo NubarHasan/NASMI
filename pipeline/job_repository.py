@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from core.guards import require
-from core.time import utcnow_iso
+from core.time import format_timestamp, utcnow
 from pipeline.job import Job, JobStatus
 
 _log = logging.getLogger(__name__)
@@ -92,7 +92,7 @@ class SQLiteJobRepository:
 
     def save(self, job: Job) -> None:
         require(isinstance(job, Job), "job must be a Job")
-        now = utcnow_iso()
+        now = format_timestamp(utcnow())
         blob = json.dumps(job.to_dict(), ensure_ascii=False)
         with self._lock:
             self._conn.execute(
@@ -112,7 +112,7 @@ class SQLiteJobRepository:
                     str(job.job_type),
                     int(job.priority),
                     str(job.status),
-                    job.created_at,
+                    format_timestamp(job.created_at),
                     now,
                     blob,
                 ),
