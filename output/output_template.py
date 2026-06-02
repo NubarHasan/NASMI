@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 from types import MappingProxyType
 
-from nasmi.core.validation import require
-from nasmi.output.output_format import OutputFormat
-from nasmi.output.output_source import OutputSource
-from nasmi.output.output_type import OutputType
+from core.validation import require
+
+from output.output_format import OutputFormat
+from output.output_source import OutputSource
+from output.output_type import OutputType
 
 
 @dataclass(frozen=True)

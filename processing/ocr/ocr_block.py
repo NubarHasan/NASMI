@@ -7,8 +7,8 @@ from pathlib import Path
 from core.guards import require
 from core.identifiers import generate_ocr_block_id, is_valid_ocr_block_id
 from core.types import ConfidenceScore, Metadata, OcrBlockId
-from ocr.bounding_box import BoundingBox
-from ocr.ocr_line import OcrLine
+from processing.ocr.bounding_box import BoundingBox
+from processing.ocr.ocr_line import OcrLine
 
 _MIN_CONFIDENCE: ConfidenceScore = 0.0
 _MAX_CONFIDENCE: ConfidenceScore = 1.0

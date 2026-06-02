@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from core.guards import require
-from ocr.ocr_engine_registry import OcrEngineRegistry
-from ocr.ocr_request import OcrRequest
-from ocr.ocr_result import OcrResult
+from processing.ocr.ocr_engine_registry import OcrEngineRegistry
+from processing.ocr.ocr_request import OcrRequest
+from processing.ocr.ocr_result import OcrResult
 
 
 class OcrService:

@@ -14,7 +14,7 @@ from core.types import (
     ExtractionResultId,
     SourceId,
 )
-from extraction.candidate_fact import CandidateFact
+from processing.extraction.candidate_fact import CandidateFact
 
 
 @dataclass(frozen=True)

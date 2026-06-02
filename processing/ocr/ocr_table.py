@@ -5,9 +5,9 @@ from dataclasses import dataclass, field
 from core.guards import require
 from core.identifiers import generate_ocr_table_id, is_valid_ocr_table_id
 from core.types import ConfidenceScore, Metadata, OcrTableId
-from ocr.bounding_box import BoundingBox
-from ocr.ocr_cell import OcrCell
-from ocr.ocr_row import OcrRow
+from processing.ocr.bounding_box import BoundingBox
+from processing.ocr.ocr_cell import OcrCell
+from processing.ocr.ocr_row import OcrRow
 
 
 @dataclass(frozen=True)

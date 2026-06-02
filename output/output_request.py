@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from nasmi.core.entity import EntityId
-from nasmi.core.validation import is_valid_entity_id, require
-from nasmi.output.output_format import OutputFormat
-from nasmi.output.output_type import OutputType
+from core.entity import EntityId
+from core.validation import is_valid_entity_id, require
+
+from output.output_format import OutputFormat
+from output.output_type import OutputType
 
 
 @dataclass(frozen=True)

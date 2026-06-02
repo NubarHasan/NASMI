@@ -1,9 +1,10 @@
 from typing import Protocol, runtime_checkable
 
-from nasmi.core.validation import require
-from nasmi.output.output_document import OutputDocument
-from nasmi.output.output_request import OutputRequest
-from nasmi.output.output_type import OutputType
+from core.validation import require
+
+from output.output_document import OutputDocument
+from output.output_request import OutputRequest
+from output.output_type import OutputType
 
 
 @runtime_checkable

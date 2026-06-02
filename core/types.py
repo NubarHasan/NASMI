@@ -41,6 +41,7 @@ OcrResultId = NewType("OcrResultId", str)
 OcrRequestId = NewType("OcrRequestId", str)
 OcrLineId = NewType("OcrLineId", str)
 OcrWordId = NewType("OcrWordId", str)
+ValidationReportId = NewType("ValidationReportId", str)
 
 HashValue: TypeAlias = str
 HMACValue: TypeAlias = str

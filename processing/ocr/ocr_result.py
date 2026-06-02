@@ -9,7 +9,7 @@ from core.identifiers import (
     is_valid_source_id,
 )
 from core.types import ConfidenceScore, Metadata, OcrResultId, SourceId
-from ocr.ocr_page import OcrPage
+from processing.ocr.ocr_page import OcrPage
 
 
 @dataclass(frozen=True)

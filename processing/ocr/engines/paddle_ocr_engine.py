@@ -12,13 +12,13 @@ from PIL import Image
 
 from core.exceptions import OcrProcessingError
 from core.types import ConfidenceScore
-from ocr.bounding_box import BoundingBox
-from ocr.ocr_block import OcrBlock, OcrBlockType
-from ocr.ocr_line import OcrLine
-from ocr.ocr_page import OcrPage
-from ocr.ocr_request import OcrRequest
-from ocr.ocr_result import OcrResult
-from ocr.ocr_word import OcrWord
+from processing.ocr.bounding_box import BoundingBox
+from processing.ocr.ocr_block import OcrBlock, OcrBlockType
+from processing.ocr.ocr_line import OcrLine
+from processing.ocr.ocr_page import OcrPage
+from processing.ocr.ocr_request import OcrRequest
+from processing.ocr.ocr_result import OcrResult
+from processing.ocr.ocr_word import OcrWord
 
 try:
     import paddleocr as _paddleocr_module

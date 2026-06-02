@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from core.guards import require
-from ocr.ocr_engine import OcrEngine
+from processing.ocr.ocr_engine import OcrEngine
 
 
 class OcrEngineRegistry:

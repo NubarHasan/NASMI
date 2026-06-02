@@ -5,8 +5,8 @@ from dataclasses import dataclass, field
 from core.guards import require
 from core.identifiers import generate_ocr_page_id, is_valid_ocr_page_id
 from core.types import ConfidenceScore, Metadata, OcrPageId
-from ocr.ocr_block import OcrBlock
-from ocr.ocr_table import OcrTable
+from processing.ocr.ocr_block import OcrBlock
+from processing.ocr.ocr_table import OcrTable
 
 _MIN_DIMENSION: float = 0.0
 

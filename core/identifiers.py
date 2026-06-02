@@ -42,6 +42,7 @@ from core.types import (
     ReviewQueueId,
     SourceId,
     UserId,
+    ValidationReportId,
     VaultId,
 )
 
@@ -85,6 +86,7 @@ _PREFIX_OCR_RESULT: str = "ORS"
 _PREFIX_OCR_REQUEST: str = "ORQ"
 _PREFIX_OCR_LINE: str = "OLN"
 _PREFIX_OCR_WORD: str = "OWD"
+_PREFIX_VALIDATION_REPORT: str = "VRP"
 
 _KNOWN_PREFIXES: frozenset[str] = frozenset(
     {
@@ -126,6 +128,7 @@ _KNOWN_PREFIXES: frozenset[str] = frozenset(
         _PREFIX_OCR_REQUEST,
         _PREFIX_OCR_LINE,
         _PREFIX_OCR_WORD,
+        _PREFIX_VALIDATION_REPORT,
     }
 )
 
@@ -290,6 +293,10 @@ def generate_ocr_word_id() -> OcrWordId:
     return OcrWordId(generate_id(_PREFIX_OCR_WORD))
 
 
+def generate_validation_report_id() -> ValidationReportId:
+    return ValidationReportId(generate_id(_PREFIX_VALIDATION_REPORT))
+
+
 def is_valid_id(value: str, prefix: str) -> bool:
     if not isinstance(value, str):
         return False
@@ -452,6 +459,10 @@ def is_valid_ocr_line_id(value: str) -> bool:
 
 def is_valid_ocr_word_id(value: str) -> bool:
     return is_valid_id(value, _PREFIX_OCR_WORD)
+
+
+def is_valid_validation_report_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_VALIDATION_REPORT)
 
 
 def parse_id(value: str) -> tuple[str, str]:

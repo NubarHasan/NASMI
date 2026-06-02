@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from ocr.ocr_request import OcrRequest
-from ocr.ocr_result import OcrResult
+from processing.ocr.ocr_request import OcrRequest
+from processing.ocr.ocr_result import OcrResult
 
 
 @runtime_checkable

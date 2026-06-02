@@ -5,8 +5,8 @@ from dataclasses import dataclass, field
 from core.guards import require
 from core.identifiers import generate_ocr_row_id, is_valid_ocr_row_id
 from core.types import ConfidenceScore, Metadata, OcrRowId
-from ocr.bounding_box import BoundingBox
-from ocr.ocr_cell import OcrCell
+from processing.ocr.bounding_box import BoundingBox
+from processing.ocr.ocr_cell import OcrCell
 
 
 @dataclass(frozen=True)

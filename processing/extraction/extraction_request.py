@@ -13,7 +13,7 @@ from core.types import (
     ExtractionRequestId,
     SourceId,
 )
-from extraction.extractable_content import ExtractableContent
+from processing.extraction.extractable_content import ExtractableContent
 
 
 @dataclass(frozen=True)
