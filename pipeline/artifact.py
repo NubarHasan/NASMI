@@ -16,6 +16,7 @@ class ArtifactType(StrEnum):
     DOCUMENT = "document"
     EVIDENCE = "evidence"
     FACT = "fact"
+    OCR = "ocr"
     PROFILE = "profile"
     INTERMEDIATE = "intermediate"
 
@@ -200,6 +201,74 @@ class FactArtifact(BaseArtifact):
 
 
 @dataclass(frozen=True)
+class OcrArtifact(BaseArtifact):
+    document_id: str
+    source_id: str
+    page_count: int
+    mean_confidence: float
+    snapshot: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        base = super().to_dict()
+        base["document_id"] = self.document_id
+        base["source_id"] = self.source_id
+        base["page_count"] = self.page_count
+        base["mean_confidence"] = self.mean_confidence
+        base["snapshot"] = copy.deepcopy(self.snapshot)
+        return base
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> OcrArtifact:
+        return cls(
+            **BaseArtifact._base_fields(data),
+            document_id=data["document_id"],
+            source_id=data["source_id"],
+            page_count=data["page_count"],
+            mean_confidence=data["mean_confidence"],
+            snapshot=copy.deepcopy(data["snapshot"]),
+        )
+
+    @classmethod
+    def create(
+        cls,
+        job_id: str,
+        stage: str,
+        document_id: str,
+        source_id: str,
+        page_count: int,
+        mean_confidence: float,
+        snapshot: dict[str, Any],
+        source_artifact_ids: tuple[str, ...] = (),
+    ) -> OcrArtifact:
+        require(bool(job_id), "job_id must be non-empty")
+        require(bool(stage), "stage must be non-empty")
+        require(bool(document_id), "document_id must be non-empty")
+        require(bool(source_id), "source_id must be non-empty")
+        require(
+            isinstance(page_count, int) and page_count >= 0,
+            "page_count must be a non-negative int",
+        )
+        require(
+            0.0 <= mean_confidence <= 1.0,
+            "mean_confidence must be in [0.0, 1.0]",
+        )
+        _validate_source_ids(source_artifact_ids)
+        return cls(
+            artifact_id=generate_artifact_id(),
+            artifact_type=ArtifactType.OCR,
+            job_id=job_id,
+            stage=stage,
+            created_at=utcnow(),
+            source_artifact_ids=source_artifact_ids,
+            document_id=document_id,
+            source_id=source_id,
+            page_count=page_count,
+            mean_confidence=mean_confidence,
+            snapshot=copy.deepcopy(snapshot),
+        )
+
+
+@dataclass(frozen=True)
 class ProfileArtifact(BaseArtifact):
     entity_id: str
     snapshot: dict[str, Any]
@@ -291,6 +360,7 @@ Artifact = (
     DocumentArtifact
     | EvidenceArtifact
     | FactArtifact
+    | OcrArtifact
     | ProfileArtifact
     | IntermediateArtifact
 )
@@ -305,6 +375,7 @@ _ARTIFACT_REGISTRY: dict[str, _ArtifactDecoder] = {
     ArtifactType.DOCUMENT: DocumentArtifact,
     ArtifactType.EVIDENCE: EvidenceArtifact,
     ArtifactType.FACT: FactArtifact,
+    ArtifactType.OCR: OcrArtifact,
     ArtifactType.PROFILE: ProfileArtifact,
     ArtifactType.INTERMEDIATE: IntermediateArtifact,
 }

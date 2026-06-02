@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from core.guards import require
 from core.identifiers import generate_ocr_page_id, is_valid_ocr_page_id
@@ -42,10 +43,6 @@ class OcrPage:
         require(
             all(isinstance(t, OcrTable) for t in self.tables),
             "every element of tables must be an OcrTable",
-        )
-        require(
-            len(self.blocks) > 0 or len(self.tables) > 0,
-            "page must contain at least one block or table",
         )
         require(isinstance(self.metadata, dict), "metadata must be a dict")
 
@@ -91,14 +88,6 @@ class OcrPage:
         )
 
     @property
-    def has_blocks(self) -> bool:
-        return len(self.blocks) > 0
-
-    @property
-    def has_tables(self) -> bool:
-        return len(self.tables) > 0
-
-    @property
     def block_count(self) -> int:
         return len(self.blocks)
 
@@ -107,42 +96,46 @@ class OcrPage:
         return len(self.tables)
 
     @property
-    def table_cell_count(self) -> int:
-        return sum(t.cell_count for t in self.tables)
+    def has_blocks(self) -> bool:
+        return len(self.blocks) > 0
 
     @property
-    def line_count(self) -> int:
-        return sum(b.line_count for b in self.blocks)
-
-    @property
-    def word_count(self) -> int:
-        return sum(b.word_count for b in self.blocks)
-
-    @property
-    def char_count(self) -> int:
-        return len(self.reconstructed_text)
-
-    @property
-    def reconstructed_text(self) -> str:
-        parts: list[str] = []
-        for block in self.blocks:
-            parts.append(block.reconstructed_text)
-        for table in self.tables:
-            parts.append(table.reconstructed_text)
-        return "\n\n".join(parts)
+    def has_tables(self) -> bool:
+        return len(self.tables) > 0
 
     @property
     def mean_confidence(self) -> ConfidenceScore:
-        sources = [*self.blocks, *self.tables]
-        return round(
-            sum(s.mean_confidence for s in sources) / len(sources),
-            4,
+        total = sum(b.confidence for b in self.blocks) + sum(
+            t.confidence for t in self.tables
         )
+        count = len(self.blocks) + len(self.tables)
+        if count == 0:
+            return 0.0
+        return round(total / count, 4)
 
     @property
-    def is_confident(self) -> bool:
-        return self.mean_confidence >= 0.8
+    def full_text(self) -> str:
+        return "\n".join(b.text for b in self.blocks)
 
-    @property
-    def is_low_confidence(self) -> bool:
-        return self.mean_confidence < 0.5
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ocr_page_id": self.ocr_page_id,
+            "page_number": self.page_number,
+            "width": self.width,
+            "height": self.height,
+            "blocks": [b.to_dict() for b in self.blocks],
+            "tables": [t.to_dict() for t in self.tables],
+            "metadata": dict(self.metadata),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> OcrPage:
+        return cls(
+            ocr_page_id=data["ocr_page_id"],
+            page_number=data["page_number"],
+            width=data["width"],
+            height=data["height"],
+            blocks=tuple(OcrBlock.from_dict(b) for b in data.get("blocks", [])),
+            tables=tuple(OcrTable.from_dict(t) for t in data.get("tables", [])),
+            metadata=data.get("metadata", {}),
+        )

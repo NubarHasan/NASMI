@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from core.guards import require
 from core.identifiers import generate_ocr_table_id, is_valid_ocr_table_id
@@ -99,30 +100,12 @@ class OcrTable:
 
     @property
     def column_count(self) -> int:
-        return max(r.column_count for r in self.rows)
-
-    @property
-    def cell_count(self) -> int:
-        return sum(r.column_count for r in self.rows)
-
-    @property
-    def row_indexes(self) -> tuple[int, ...]:
-        return tuple(r.row_index for r in self.rows)
-
-    @property
-    def has_gaps(self) -> bool:
-        indexes = self.row_indexes
-        return indexes != tuple(range(indexes[0], indexes[0] + len(indexes)))
-
-    @property
-    def is_uniform(self) -> bool:
-        counts = {r.column_count for r in self.rows}
-        return len(counts) == 1
+        return max((r.column_count for r in self.rows), default=0)
 
     @property
     def mean_confidence(self) -> ConfidenceScore:
         return round(
-            sum(r.mean_confidence for r in self.rows) / len(self.rows),
+            sum(r.confidence for r in self.rows) / len(self.rows),
             4,
         )
 
@@ -135,12 +118,8 @@ class OcrTable:
         return self.confidence < 0.5
 
     @property
-    def any_low_confidence(self) -> bool:
-        return any(r.any_low_confidence for r in self.rows)
-
-    @property
-    def reconstructed_text(self) -> str:
-        return "\n".join(r.reconstructed_text for r in self.rows)
+    def all_cells(self) -> tuple[OcrCell, ...]:
+        return tuple(cell for row in self.rows for cell in row.cells)
 
     def row_at(self, row_index: int) -> OcrRow | None:
         for row in self.rows:
@@ -153,3 +132,24 @@ class OcrTable:
         if row is None:
             return None
         return row.cell_at(column_index)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "table_id": self.table_id,
+            "page_number": self.page_number,
+            "rows": [r.to_dict() for r in self.rows],
+            "bounding_box": self.bounding_box.to_dict(),
+            "confidence": self.confidence,
+            "metadata": dict(self.metadata),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> OcrTable:
+        return cls(
+            table_id=data["table_id"],
+            page_number=data["page_number"],
+            rows=tuple(OcrRow.from_dict(r) for r in data["rows"]),
+            bounding_box=BoundingBox.from_dict(data["bounding_box"]),
+            confidence=data["confidence"],
+            metadata=data.get("metadata", {}),
+        )

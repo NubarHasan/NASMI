@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 from core.guards import require
 
@@ -128,3 +129,20 @@ class BoundingBox:
         require(isinstance(tolerance, (int, float)), "tolerance must be a number")
         require(tolerance >= 0.0, "tolerance must be >= 0")
         return abs(self.center_x - other.center_x) <= tolerance
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "x": self.x,
+            "y": self.y,
+            "width": self.width,
+            "height": self.height,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> BoundingBox:
+        return cls(
+            x=data["x"],
+            y=data["y"],
+            width=data["width"],
+            height=data["height"],
+        )

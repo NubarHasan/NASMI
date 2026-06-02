@@ -23,16 +23,6 @@ class JobHandler(Protocol):
 
 
 class HandlerRegistry:
-    """
-    Maps JobType → JobHandler.
-
-    Thread-safety contract
-    ──────────────────────
-    All register() calls MUST complete during application bootstrap,
-    before the Dispatcher thread is started.  Concurrent registration
-    after startup is not supported and may cause race conditions.
-    """
-
     def __init__(self) -> None:
         self._handlers: dict[JobType, JobHandler] = {}
 
@@ -62,29 +52,6 @@ class BaseWorker(ABC):
 
 
 class DefaultWorker(BaseWorker):
-    """
-    Routes each Job to the appropriate JobHandler via HandlerRegistry.
-
-    Responsibilities
-    ────────────────
-    • Resolve handler for job.job_type
-    • Call handler.handle(job)
-    • Catch unhandled exceptions → record PipelineFailure on context
-    • Never touch RecoveryDecision — that belongs to Dispatcher
-
-    The handler is expected to write to:
-        job.context.artifacts   — on success
-        job.context.failures    — on partial failure / low-confidence
-
-    v1 notes
-    ────────
-    • HANDLER_ERROR is always marked is_retryable=True.
-      A FailureClassifier for ValueError / ValidationError / corrupt data
-      is deferred to v2.
-    • requires_review=True on every failure.
-      Granular review routing is deferred until the Review Layer is built.
-    """
-
     def __init__(self, registry: HandlerRegistry) -> None:
         require(
             isinstance(registry, HandlerRegistry), "registry must be a HandlerRegistry"
@@ -138,7 +105,7 @@ class DefaultWorker(BaseWorker):
                 category=FailureCategory.SYSTEM,
                 source=FailureSource.SYSTEM,
                 message=str(exc),
-                severity=FailureSeverity.CRITICAL,
+                severity=FailureSeverity.ERROR,
                 is_retryable=True,
                 metadata={
                     "error_code": "HANDLER_ERROR",

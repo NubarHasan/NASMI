@@ -18,7 +18,7 @@ from forms.form_type import SubmissionStatus
 
 
 @dataclass(frozen=True)
-class FieldValue:
+class SubmissionEntry:
     field_id: FormFieldId
     value: Any
 
@@ -27,13 +27,14 @@ class FieldValue:
         require(self.value is not None, "value must not be None")
 
 
-def _require_unique_values(values: tuple[FieldValue, ...]) -> None:
+def _require_unique_entries(entries: tuple[SubmissionEntry, ...]) -> None:
     seen: set[str] = set()
-    for v in values:
+    for e in entries:
         require(
-            v.field_id not in seen, f"duplicate field_id in submission: {v.field_id}"
+            e.field_id not in seen,
+            f"duplicate field_id in submission: {e.field_id}",
         )
-        seen.add(v.field_id)
+        seen.add(e.field_id)
 
 
 @dataclass(frozen=True)
@@ -42,7 +43,7 @@ class FormSubmission:
     template_id: FormTemplateId
     version: int
     status: SubmissionStatus
-    values: tuple[FieldValue, ...]
+    entries: tuple[SubmissionEntry, ...]
     submitted_at: datetime | None
     metadata: Mapping[str, Any]
 
@@ -61,13 +62,13 @@ class FormSubmission:
             isinstance(self.status, SubmissionStatus),
             "status must be a SubmissionStatus",
         )
-        require(isinstance(self.values, tuple), "values must be a tuple")
+        require(isinstance(self.entries, tuple), "entries must be a tuple")
         require(
-            all(isinstance(v, FieldValue) for v in self.values),
-            "all values must be FieldValue instances",
+            all(isinstance(e, SubmissionEntry) for e in self.entries),
+            "all entries must be SubmissionEntry instances",
         )
-        require(len(self.values) > 0, "submission must contain at least one value")
-        _require_unique_values(self.values)
+        require(len(self.entries) > 0, "submission must contain at least one entry")
+        _require_unique_entries(self.entries)
         if self.status is SubmissionStatus.DRAFT:
             require(
                 self.submitted_at is None,
@@ -94,39 +95,44 @@ class FormSubmission:
         cls,
         template_id: FormTemplateId,
         version: int,
-        values: tuple[FieldValue, ...],
+        entries: tuple[SubmissionEntry, ...],
         metadata: Mapping[str, Any] | None = None,
         submission_id: FormSubmissionId | None = None,
     ) -> FormSubmission:
         require(
-            is_valid_form_template_id(template_id), "template_id has invalid format"
+            is_valid_form_template_id(template_id),
+            "template_id has invalid format",
         )
         require(isinstance(version, int), "version must be an integer")
         require(version >= 1, "version must be >= 1")
-        require(isinstance(values, tuple), "values must be a tuple")
+        require(isinstance(entries, tuple), "entries must be a tuple")
         require(
-            all(isinstance(v, FieldValue) for v in values),
-            "all values must be FieldValue instances",
+            all(isinstance(e, SubmissionEntry) for e in entries),
+            "all entries must be SubmissionEntry instances",
         )
-        require(len(values) > 0, "submission must contain at least one value")
-        _require_unique_values(values)
+        require(len(entries) > 0, "submission must contain at least one entry")
+        _require_unique_entries(entries)
+
         resolved_id = (
             submission_id
             if submission_id is not None
             else generate_form_submission_id()
         )
         require(
-            is_valid_form_submission_id(resolved_id), "submission_id has invalid format"
+            is_valid_form_submission_id(resolved_id),
+            "submission_id has invalid format",
         )
+
         resolved_metadata = MappingProxyType(
             dict(metadata) if metadata is not None else {}
         )
+
         return cls(
             submission_id=resolved_id,
             template_id=template_id,
             version=version,
             status=SubmissionStatus.DRAFT,
-            values=values,
+            entries=entries,
             submitted_at=None,
             metadata=resolved_metadata,
         )
@@ -147,21 +153,21 @@ class FormSubmission:
             template_id=self.template_id,
             version=self.version,
             status=SubmissionStatus.SUBMITTED,
-            values=self.values,
+            entries=self.entries,
             submitted_at=resolved_at,
             metadata=self.metadata,
         )
 
     @property
-    def value_count(self) -> int:
-        return len(self.values)
+    def entry_count(self) -> int:
+        return len(self.entries)
 
-    def get_value(self, field_id: FormFieldId) -> FieldValue | None:
+    def get_entry(self, field_id: FormFieldId) -> SubmissionEntry | None:
         require(is_valid_form_field_id(field_id), "field_id has invalid format")
-        for v in self.values:
-            if v.field_id == field_id:
-                return v
+        for e in self.entries:
+            if e.field_id == field_id:
+                return e
         return None
 
-    def has_value(self, field_id: FormFieldId) -> bool:
-        return self.get_value(field_id) is not None
+    def has_entry(self, field_id: FormFieldId) -> bool:
+        return self.get_entry(field_id) is not None

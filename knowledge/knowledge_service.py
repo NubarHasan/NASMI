@@ -148,6 +148,8 @@ class KnowledgeService:
 
         fact = self._store._facts.get(fact_id)
         require(fact is not None, f"fact {fact_id!r} not found")
+        assert fact is not None
+
         require(fact.status == FactStatus.PENDING, f"fact {fact_id!r} is not PENDING")
 
         accepted = self._find_accepted_fact(fact.entity_id, fact.field_name)
@@ -168,6 +170,8 @@ class KnowledgeService:
 
         fact = self._store._facts.get(fact_id)
         require(fact is not None, f"fact {fact_id!r} not found")
+        assert fact is not None
+
         require(fact.status == FactStatus.PENDING, "only PENDING facts can be rejected")
 
         rejected = fact.reject()
@@ -206,10 +210,21 @@ class KnowledgeService:
 
         conflict = self._store._conflicts.get(conflict_id)
         require(conflict is not None, f"conflict {conflict_id!r} not found")
+        assert conflict is not None
+
         require(conflict.is_open, f"conflict {conflict_id!r} is not OPEN")
         require(
             winning_fact_id in conflict.fact_ids,
             f"winning_fact_id {winning_fact_id!r} not part of this conflict",
+        )
+
+        winning_fact = self._store._facts.get(winning_fact_id)
+        require(winning_fact is not None, f"winning fact {winning_fact_id!r} not found")
+        assert winning_fact is not None
+
+        require(
+            winning_fact.status in (FactStatus.PENDING, FactStatus.ACCEPTED),
+            f"winning fact {winning_fact_id!r} must be PENDING or ACCEPTED",
         )
 
         for fid in conflict.fact_ids:
@@ -241,6 +256,8 @@ class KnowledgeService:
 
         conflict = self._store._conflicts.get(conflict_id)
         require(conflict is not None, f"conflict {conflict_id!r} not found")
+        assert conflict is not None
+
         require(conflict.is_open, f"conflict {conflict_id!r} is not OPEN")
 
         dismissed = conflict.dismiss(
@@ -253,6 +270,10 @@ class KnowledgeService:
     def record_provenance(self, provenance: Provenance) -> Provenance:
         require(isinstance(provenance, Provenance), "provenance must be a Provenance")
         require(is_valid_fact_id(provenance.fact_id), "provenance has invalid fact_id")
+        require(
+            provenance.fact_id not in self._store._provenance,
+            f"provenance already exists for fact [{provenance.fact_id}]",
+        )
         self._store._provenance[provenance.fact_id] = provenance
         return provenance
 
@@ -271,7 +292,7 @@ class KnowledgeService:
         entity_id: EntityId,
         entity_type: str,
         display_name: str,
-        metadata: dict | None = None,
+        metadata: dict[str, object] | None = None,
     ) -> Profile:
         require(is_valid_entity_id(entity_id), "invalid entity_id")
         require(bool(entity_type.strip()), "entity_type must not be blank")
@@ -290,6 +311,7 @@ class KnowledgeService:
                 sourced_at=fact.accepted_at or fact.created_at,
             )
 
+        # TODO: completeness should be calculated by ProfileBuilder
         return Profile.create(
             entity_id=entity_id,
             entity_type=entity_type,
@@ -304,14 +326,19 @@ class KnowledgeService:
         entity_id: EntityId,
         field_name: str,
     ) -> Fact | None:
-        for fact in self._store._facts.values():
-            if (
-                fact.entity_id == entity_id
-                and fact.field_name == field_name
-                and fact.status == FactStatus.ACCEPTED
-            ):
-                return fact
-        return None
+        accepted = [
+            f
+            for f in self._store._facts.values()
+            if f.entity_id == entity_id
+            and f.field_name == field_name
+            and f.status == FactStatus.ACCEPTED
+        ]
+        require(
+            len(accepted) <= 1,
+            f"invariant violated: multiple ACCEPTED facts "
+            f"for entity [{entity_id}] field [{field_name}]",
+        )
+        return accepted[0] if accepted else None
 
     def _values_match(self, existing: Fact, incoming: Fact) -> bool:
         return (
@@ -352,6 +379,14 @@ class KnowledgeService:
         accepted: Fact,
         incoming: Fact,
     ) -> Conflict:
+        require(
+            accepted.entity_id == incoming.entity_id,
+            "facts must belong to the same entity",
+        )
+        require(
+            accepted.field_name == incoming.field_name,
+            "facts must target the same field",
+        )
         conflict = Conflict.create(
             entity_id=accepted.entity_id,
             field_name=accepted.field_name,

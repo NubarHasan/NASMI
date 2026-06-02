@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Any
 
 from core.guards import require
@@ -74,7 +76,7 @@ class Profile:
     entity_id: EntityId
     entity_type: str
     display_name: str
-    fields: dict[str, ProfileField]
+    fields: Mapping[str, ProfileField]  # runtime: MappingProxyType
     completeness: float
     computed_at: str
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -97,8 +99,8 @@ class Profile:
             "display_name must be a non-empty string",
         )
         require(
-            isinstance(self.fields, dict),
-            "fields must be a dictionary",
+            isinstance(self.fields, MappingProxyType),
+            "fields must be a MappingProxyType",
         )
         require(
             all(
@@ -152,59 +154,30 @@ class Profile:
             entity_id=EntityId(data["entity_id"]),
             entity_type=data["entity_type"],
             display_name=data["display_name"],
-            fields={k: ProfileField.from_dict(v) for k, v in data["fields"].items()},
+            fields=MappingProxyType(
+                {k: ProfileField.from_dict(v) for k, v in data["fields"].items()}
+            ),
             completeness=float(data["completeness"]),
             computed_at=data["computed_at"],
-            metadata=data.get("metadata", {}),
+            metadata=dict(data.get("metadata", {})),
         )
 
     @classmethod
     def create(
         cls,
-        entity_id: str,
+        entity_id: EntityId,
         entity_type: str,
         display_name: str,
         fields: dict[str, ProfileField],
         completeness: float,
         metadata: dict[str, Any] | None = None,
     ) -> Profile:
-        require(
-            is_valid_entity_id(entity_id),
-            f"invalid entity_id: {entity_id!r}",
-        )
-        require(
-            isinstance(entity_type, str) and bool(entity_type.strip()),
-            "entity_type must be a non-empty string",
-        )
-        require(
-            isinstance(display_name, str) and bool(display_name.strip()),
-            "display_name must be a non-empty string",
-        )
-        require(
-            isinstance(fields, dict),
-            "fields must be a dictionary",
-        )
-        require(
-            all(
-                isinstance(k, str) and bool(k.strip()) and isinstance(v, ProfileField)
-                for k, v in fields.items()
-            ),
-            "fields must map non-empty strings to ProfileField instances",
-        )
-        require(
-            all(k == v.field_name for k, v in fields.items()),
-            "each fields key must match its ProfileField.field_name",
-        )
-        require(
-            0.0 <= completeness <= 1.0,
-            f"completeness must be in [0.0, 1.0], got {completeness}",
-        )
         return cls(
             profile_id=generate_profile_id(),
-            entity_id=EntityId(entity_id),
+            entity_id=entity_id,
             entity_type=entity_type,
             display_name=display_name,
-            fields=dict(fields),
+            fields=MappingProxyType(dict(fields)),
             completeness=completeness,
             computed_at=utcnow_iso(),
             metadata=dict(metadata) if metadata else {},

@@ -37,7 +37,7 @@ def _build_document_path(document: Document) -> str:
     return f"documents/{document.document_id}_{file_name}"
 
 
-def _serialize_manifest(manifest: ApplicationPackageManifest) -> dict[str, Any]:
+def serialize_manifest(manifest: ApplicationPackageManifest) -> dict[str, Any]:
     return {
         "package_id": str(manifest.package_id),
         "subject_id": str(manifest.subject_id),
@@ -97,10 +97,7 @@ class ApplicationPackageGenerator:
         target_authority: str | None = None,
         notes: str | None = None,
     ) -> PackageResult:
-        require(
-            is_valid_entity_id(subject_id),
-            f"invalid subject_id: {subject_id!r}",
-        )
+        require(is_valid_entity_id(subject_id), f"invalid subject_id: {subject_id!r}")
 
         outputs = self._output_query.list_by_subject(subject_id)
         documents = self._document_query.list_by_subject(subject_id)
@@ -125,6 +122,18 @@ class ApplicationPackageGenerator:
             len(outputs) > 0 or len(documents) > 0,
             f"no outputs or documents found for subject: {subject_id!r}",
         )
+
+        # ── التحقق من وجود الملفات قبل hash_file ────────────────────────
+        for o in outputs:
+            require(
+                Path(o.file_path).exists(),
+                f"output file not found on disk: {o.file_path!r}",
+            )
+        for d in documents:
+            require(
+                Path(d.file_path).exists(),
+                f"document file not found on disk: {d.file_path!r}",
+            )
 
         output_entries = tuple(
             PackageOutputEntry(
@@ -163,7 +172,7 @@ class ApplicationPackageGenerator:
             notes=notes,
         )
 
-        manifest_hash = hash_json(_serialize_manifest(manifest))
+        manifest_hash = hash_json(serialize_manifest(manifest))
 
         metadata = PackageMetadata(
             package_id=package_id,

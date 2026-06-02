@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from core.guards import require
 from core.identifiers import generate_ocr_row_id, is_valid_ocr_row_id
@@ -125,3 +126,24 @@ class OcrRow:
             if cell.column_index == column_index:
                 return cell
         return None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "row_id": self.row_id,
+            "row_index": self.row_index,
+            "cells": [c.to_dict() for c in self.cells],
+            "bounding_box": self.bounding_box.to_dict(),
+            "confidence": self.confidence,
+            "metadata": dict(self.metadata),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> OcrRow:
+        return cls(
+            row_id=data["row_id"],
+            row_index=data["row_index"],
+            cells=tuple(OcrCell.from_dict(c) for c in data["cells"]),
+            bounding_box=BoundingBox.from_dict(data["bounding_box"]),
+            confidence=data["confidence"],
+            metadata=data.get("metadata", {}),
+        )

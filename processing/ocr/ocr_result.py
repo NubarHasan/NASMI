@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from core.guards import require
 from core.identifiers import (
@@ -38,7 +39,7 @@ class OcrResult:
         _page_numbers = [p.page_number for p in self.pages]
         require(
             _page_numbers == sorted(_page_numbers),
-            "pages must be ordered by page_number",
+            "pages must be ordered by page_number (ascending)",
         )
         require(
             len(_page_numbers) == len(set(_page_numbers)),
@@ -76,56 +77,46 @@ class OcrResult:
         )
 
     @property
-    def has_tables(self) -> bool:
-        return any(p.has_tables for p in self.pages)
-
-    @property
     def page_count(self) -> int:
         return len(self.pages)
 
     @property
-    def page_numbers(self) -> tuple[int, ...]:
-        return tuple(p.page_number for p in self.pages)
+    def mean_confidence(self) -> ConfidenceScore:
+        if not self.pages:
+            return 0.0
+        return round(sum(p.mean_confidence for p in self.pages) / len(self.pages), 4)
 
     @property
-    def block_count(self) -> int:
+    def full_text(self) -> str:
+        return "\n\n".join(p.full_text for p in self.pages)
+
+    @property
+    def total_block_count(self) -> int:
         return sum(p.block_count for p in self.pages)
 
     @property
-    def table_count(self) -> int:
+    def total_table_count(self) -> int:
         return sum(p.table_count for p in self.pages)
 
-    @property
-    def table_cell_count(self) -> int:
-        return sum(p.table_cell_count for p in self.pages)
+    def page_at(self, page_number: int) -> OcrPage | None:
+        for page in self.pages:
+            if page.page_number == page_number:
+                return page
+        return None
 
-    @property
-    def line_count(self) -> int:
-        return sum(p.line_count for p in self.pages)
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ocr_result_id": self.ocr_result_id,
+            "source_id": self.source_id,
+            "pages": [p.to_dict() for p in self.pages],
+            "metadata": dict(self.metadata),
+        }
 
-    @property
-    def word_count(self) -> int:
-        return sum(p.word_count for p in self.pages)
-
-    @property
-    def char_count(self) -> int:
-        return len(self.reconstructed_text)
-
-    @property
-    def reconstructed_text(self) -> str:
-        return "\n\n".join(p.reconstructed_text for p in self.pages)
-
-    @property
-    def mean_confidence(self) -> ConfidenceScore:
-        return round(
-            sum(p.mean_confidence for p in self.pages) / len(self.pages),
-            4,
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> OcrResult:
+        return cls(
+            ocr_result_id=data["ocr_result_id"],
+            source_id=data["source_id"],
+            pages=tuple(OcrPage.from_dict(p) for p in data["pages"]),
+            metadata=data.get("metadata", {}),
         )
-
-    @property
-    def is_confident(self) -> bool:
-        return self.mean_confidence >= 0.8
-
-    @property
-    def is_low_confidence(self) -> bool:
-        return self.mean_confidence < 0.5

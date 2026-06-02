@@ -125,12 +125,10 @@ class FormTemplate:
         )
         require(len(new_fields) > 0, "template must contain at least one field")
         _require_unique_fields(new_fields)
-        return FormTemplate(
-            template_id=generate_form_template_id(),
+        return FormTemplate.create(
             name=self.name,
             form_kind=self.form_kind,
-            version=self.version + 1,
             fields=new_fields,
-            created_at=datetime.now(UTC),
+            version=self.version + 1,
             metadata=self.metadata,
         )

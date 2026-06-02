@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from core.guards import require
 from core.identifiers import generate_ocr_cell_id, is_valid_ocr_cell_id
@@ -110,3 +111,26 @@ class OcrCell:
     @property
     def word_count(self) -> int:
         return len(self.text.split()) if self.text is not None else 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "cell_id": self.cell_id,
+            "row_index": self.row_index,
+            "column_index": self.column_index,
+            "text": self.text,
+            "confidence": self.confidence,
+            "bounding_box": self.bounding_box.to_dict(),
+            "metadata": dict(self.metadata),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> OcrCell:
+        return cls(
+            cell_id=data["cell_id"],
+            row_index=data["row_index"],
+            column_index=data["column_index"],
+            text=data.get("text"),
+            confidence=data["confidence"],
+            bounding_box=BoundingBox.from_dict(data["bounding_box"]),
+            metadata=data.get("metadata", {}),
+        )

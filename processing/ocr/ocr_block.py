@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
+from typing import Any
 
 from core.guards import require
 from core.identifiers import generate_ocr_block_id, is_valid_ocr_block_id
@@ -75,7 +76,7 @@ class OcrBlock:
         text: str,
         confidence: ConfidenceScore,
         bounding_box: BoundingBox,
-        block_type: OcrBlockType = OcrBlockType.PARAGRAPH,
+        block_type: OcrBlockType,
         lines: list[OcrLine] | tuple[OcrLine, ...] | None = None,
         region_image_path: Path | None = None,
         metadata: Metadata | None = None,
@@ -123,14 +124,6 @@ class OcrBlock:
         return len(self.lines)
 
     @property
-    def word_count(self) -> int:
-        return sum(ln.word_count for ln in self.lines)
-
-    @property
-    def char_count(self) -> int:
-        return len(self.text)
-
-    @property
     def is_confident(self) -> bool:
         return self.confidence >= 0.8
 
@@ -139,8 +132,10 @@ class OcrBlock:
         return self.confidence < 0.5
 
     @property
-    def has_evidence(self) -> bool:
-        return self.region_image_path is not None
+    def mean_confidence(self) -> ConfidenceScore:
+        if not self.has_lines:
+            return self.confidence
+        return round(sum(ln.confidence for ln in self.lines) / len(self.lines), 4)
 
     @property
     def reconstructed_text(self) -> str:
@@ -148,8 +143,35 @@ class OcrBlock:
             return self.text
         return "\n".join(ln.text for ln in self.lines)
 
-    @property
-    def mean_confidence(self) -> ConfidenceScore:
-        if not self.has_lines:
-            return self.confidence
-        return round(sum(ln.mean_confidence for ln in self.lines) / len(self.lines), 4)
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ocr_block_id": self.ocr_block_id,
+            "text": self.text,
+            "confidence": self.confidence,
+            "bounding_box": self.bounding_box.to_dict(),
+            "block_type": str(self.block_type),
+            "lines": [ln.to_dict() for ln in self.lines],
+            "region_image_path": (
+                str(self.region_image_path)
+                if self.region_image_path is not None
+                else None
+            ),
+            "metadata": dict(self.metadata),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> OcrBlock:
+        return cls(
+            ocr_block_id=data["ocr_block_id"],
+            text=data["text"],
+            confidence=data["confidence"],
+            bounding_box=BoundingBox.from_dict(data["bounding_box"]),
+            block_type=OcrBlockType(data["block_type"]),
+            lines=tuple(OcrLine.from_dict(ln) for ln in data.get("lines", [])),
+            region_image_path=(
+                Path(data["region_image_path"])
+                if data.get("region_image_path") is not None
+                else None
+            ),
+            metadata=data.get("metadata", {}),
+        )

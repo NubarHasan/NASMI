@@ -9,6 +9,7 @@ from output.output_request import OutputRequest
 
 
 class OutputService:
+
     def __init__(self, registry: OutputGeneratorRegistry) -> None:
         require(
             isinstance(registry, OutputGeneratorRegistry),
@@ -29,6 +30,14 @@ class OutputService:
                 )
             )
 
-        document = generator.generate(request)
+        try:
+            document = generator.generate(request)
+        except Exception as exc:
+            return Failure(
+                ApplicationError(
+                    code=ErrorCode.OUTPUT_GENERATION_FAILED,
+                    message=f"generator failed for {request.output_type}: {exc}",
+                )
+            )
 
         return Success(document)

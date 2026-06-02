@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from core.guards import require
 from core.identifiers import generate_ocr_word_id, is_valid_ocr_word_id
@@ -84,3 +85,22 @@ class OcrWord:
     @property
     def char_count(self) -> int:
         return len(self.text)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ocr_word_id": self.ocr_word_id,
+            "text": self.text,
+            "confidence": self.confidence,
+            "bounding_box": self.bounding_box.to_dict(),
+            "metadata": dict(self.metadata),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> OcrWord:
+        return cls(
+            ocr_word_id=data["ocr_word_id"],
+            text=data["text"],
+            confidence=data["confidence"],
+            bounding_box=BoundingBox.from_dict(data["bounding_box"]),
+            metadata=data.get("metadata", {}),
+        )

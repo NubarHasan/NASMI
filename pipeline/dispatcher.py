@@ -53,105 +53,96 @@ class Dispatcher:
         self._running = threading.Event()
         self._thread: threading.Thread | None = None
 
+    @property
+    def is_running(self) -> bool:
+        return self._thread is not None and self._thread.is_alive()
+
     def start(self) -> None:
-        require(
-            self._thread is None or not self._thread.is_alive(),
-            "dispatcher already running",
-        )
+        require(not self.is_running, "dispatcher already running")
         self._running.set()
         self._thread = threading.Thread(
             target=self._loop, name="dispatcher", daemon=True
         )
         self._thread.start()
-        _log.info("dispatcher started")
+        _log.info("Dispatcher started")
 
     def stop(self) -> None:
         self._running.clear()
-        _log.info("dispatcher stop requested")
+        _log.info("Dispatcher stop requested")
 
     def join(self, timeout: float | None = None) -> None:
         if self._thread is not None:
             self._thread.join(timeout=timeout)
 
-    @property
-    def is_running(self) -> bool:
-        return self._thread is not None and self._thread.is_alive()
-
     def _loop(self) -> None:
         while self._running.is_set():
             try:
-                job_id = self._queue.lease()
-                if job_id:
-                    self._dispatch(job_id)
-                else:
-                    self._running.wait(timeout=self._poll_interval)
+                self._tick()
             except Exception:
-                _log.exception("unhandled error in dispatcher loop — continuing")
+                _log.exception("unexpected error in dispatcher loop")
+            self._running.wait(timeout=self._poll_interval)
 
-    def _dispatch(self, job_id: str) -> None:
-        job: Job | None = None
+    def _tick(self) -> None:
+        job_id = self._queue.lease()
+        if job_id is None:
+            return
+
+        job = self._repository.load(job_id)
+        if job is None:
+            _log.error("leased job not found in repository: %s", job_id)
+            self._queue.fail(job_id)
+            return
+
+        job.start()
+        self._repository.save(job)
+
         try:
-            job = self._repository.load(job_id)
-            if job is None:
-                _log.error("job %r not found in repository — skipping", job_id)
-                self._queue.fail(job_id)
-                return
-
-            job.start()
-            self._repository.save(job)
             self._worker.execute(job)
-
-            decision = job.context.recovery_decision()
-            self._apply_decision(job, job_id, decision)
-
         except Exception as exc:
-            _log.exception("dispatch failed for job %r", job_id)
-            if job is not None:
-                self._record_dispatch_failure(job, exc)
-                job.fail()
-                self._repository.save(job)
-            try:
-                self._queue.fail(job_id)
-            except Exception:
-                _log.exception("failed to mark job %r as failed in queue", job_id)
+            _log.exception("unhandled exception from worker: %s", job_id)
+            failure = PipelineFailure.create(
+                job_id=job.job_id,
+                stage=job.current_stage,
+                category=FailureCategory.SYSTEM,
+                severity=FailureSeverity.CRITICAL,
+                source=FailureSource.SYSTEM,
+                message=str(exc),
+                is_retryable=False,
+                requires_review=False,
+            )
+            job.context.add_failure(failure)
 
-    def _apply_decision(
-        self, job: Job, job_id: str, decision: RecoveryDecision
-    ) -> None:
+        self._route(job)
+
+    def _route(self, job: Job) -> None:
+        decision = job.context.recovery_decision()
+
         if decision == RecoveryDecision.CONTINUE:
             job.complete()
-            self._queue.complete(job_id)
             self._repository.save(job)
-            _log.info("job %r completed", job_id)
-            return
+            self._queue.complete(job.job_id)
+            _log.info("job completed: %s", job.job_id)
 
-        if decision == RecoveryDecision.RETRY and job.retry_count < self._max_retries:
-            job.mark_retrying()
-            self._queue.requeue(job_id, delay_seconds=self._retry_delay)
+        elif decision == RecoveryDecision.RETRY:
+            if job.can_retry:
+                job.mark_retrying()
+                self._repository.save(job)
+                self._queue.requeue(job.job_id, self._retry_delay)
+                _log.info("job requeued: %s (attempt %d)", job.job_id, job.retry_count)
+            else:
+                job.fail()
+                self._repository.save(job)
+                self._queue.fail(job.job_id)
+                _log.error("job exhausted retries: %s", job.job_id)
+
+        elif decision == RecoveryDecision.ESCALATE:
+            job.fail()
             self._repository.save(job)
-            _log.info(
-                "job %r requeued (attempt %d/%d)",
-                job_id,
-                job.retry_count,
-                self._max_retries,
-            )
-            return
+            self._queue.fail(job.job_id)
+            _log.warning("job escalated to review: %s", job.job_id)
 
-        job.fail()
-        self._queue.fail(job_id)
-        self._repository.save(job)
-        _log.warning("job %r failed (decision=%s)", job_id, decision.value)
-
-    def _record_dispatch_failure(self, job: Job, exc: Exception) -> None:
-        failure = PipelineFailure.create(
-            job_id=job.job_id,
-            stage=job.context.current_stage or "dispatch",
-            category=FailureCategory.SYSTEM,
-            severity=FailureSeverity.CRITICAL,
-            source=FailureSource.SYSTEM,
-            message=str(exc),
-            is_retryable=False,
-            requires_review=True,
-            metadata={"exception_type": type(exc).__name__},
-        )
-        job.context.failures.add(failure)
+        else:
+            job.fail()
+            self._repository.save(job)
+            self._queue.fail(job.job_id)
+            _log.error("job aborted: %s", job.job_id)

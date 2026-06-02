@@ -30,9 +30,20 @@ class PipelineContext:
 
     _stage_history: list[str] = field(default_factory=list, repr=False, init=False)
 
+    @classmethod
+    def create(cls, job_id: str) -> PipelineContext:
+        require(isinstance(job_id, str) and bool(job_id), "job_id must be non-empty")
+        return cls(
+            job_id=job_id,
+            created_at=utcnow(),
+            current_stage="",
+            artifacts=ArtifactBundle(job_id=job_id),
+            failures=FailureCollection(job_id=job_id),
+            metadata={},
+        )
+
     def set_stage(self, stage: str) -> None:
-        require(isinstance(stage, str), "stage must be a string")
-        require(len(stage) > 0, "stage must be non-empty")
+        require(isinstance(stage, str) and bool(stage), "stage must be non-empty")
         if stage == self.current_stage:
             return
         if self.current_stage:
@@ -44,28 +55,29 @@ class PipelineContext:
         return list(self._stage_history)
 
     def add_artifact(self, artifact: Artifact) -> None:
+        require(artifact is not None, "artifact must not be None")
         self.artifacts.add(artifact)
 
-    def freeze_artifacts(self) -> None:
-        self.artifacts.freeze()
-
     def add_failure(self, failure: PipelineFailure) -> None:
+        require(failure is not None, "failure must not be None")
         self.failures.add(failure)
 
-    def has_critical_failures(self) -> bool:
-        return self.failures.critical_count() > 0
-
-    def requires_review(self) -> bool:
-        return self.failures.requires_review()
-
     def recovery_decision(self) -> RecoveryDecision:
-        if self.failures.critical_count() > 0:
+        all_failures = self.failures.all()
+
+        if not all_failures:
+            return RecoveryDecision.CONTINUE
+
+        if any(f.is_critical() for f in all_failures):
             return RecoveryDecision.ABORT
-        if self.failures.requires_review():
-            return RecoveryDecision.ESCALATE
-        if len(self.failures) > 0:
+
+        if any(f.is_retryable for f in all_failures):
             return RecoveryDecision.RETRY
-        return RecoveryDecision.CONTINUE
+
+        if any(f.requires_review for f in all_failures):
+            return RecoveryDecision.ESCALATE
+
+        return RecoveryDecision.ABORT
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -84,24 +96,13 @@ class PipelineContext:
             job_id=data["job_id"],
             created_at=parse_timestamp(data["created_at"]),
             current_stage=data.get("current_stage", ""),
-            artifacts=ArtifactBundle.from_dict(data["artifacts"]),
-            failures=FailureCollection.from_dict(data["failures"]),
+            artifacts=ArtifactBundle.from_dict(
+                data.get("artifacts", {"job_id": data["job_id"], "items": []})
+            ),
+            failures=FailureCollection.from_dict(
+                data.get("failures", {"job_id": data["job_id"], "items": []})
+            ),
             metadata=copy.deepcopy(data.get("metadata", {})),
         )
         ctx._stage_history = list(data.get("stage_history", []))
         return ctx
-
-    @classmethod
-    def create(
-        cls, job_id: str, metadata: dict[str, Any] | None = None
-    ) -> PipelineContext:
-        require(isinstance(job_id, str), "job_id must be a string")
-        require(len(job_id) > 0, "job_id must be non-empty")
-        return cls(
-            job_id=job_id,
-            created_at=utcnow(),
-            current_stage="",
-            artifacts=ArtifactBundle(job_id=job_id),
-            failures=FailureCollection(job_id=job_id),
-            metadata=copy.deepcopy(metadata) if metadata else {},
-        )

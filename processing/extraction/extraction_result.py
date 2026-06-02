@@ -64,8 +64,6 @@ class ExtractionResult:
             "all candidate_facts must share the same source_id as ExtractionResult",
         )
 
-    # ── properties ────────────────────────────────────────────────────────
-
     @property
     def candidate_count(self) -> int:
         return len(self.candidate_facts)
@@ -90,14 +88,10 @@ class ExtractionResult:
     def is_empty(self) -> bool:
         return len(self.candidate_facts) == 0
 
-    # ── mutations ─────────────────────────────────────────────────────────
-
     def with_metadata(self, key: str, value: Any) -> ExtractionResult:
         return ExtractionResult(
             **{**self.__dict__, "metadata": {**self.metadata, key: value}},
         )
-
-    # ── factories ─────────────────────────────────────────────────────────
 
     @classmethod
     def success(

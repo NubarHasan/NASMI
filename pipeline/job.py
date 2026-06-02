@@ -42,7 +42,7 @@ class JobStatus(StrEnum):
 _ALLOWED_TRANSITIONS: dict[JobStatus, frozenset[JobStatus]] = {
     JobStatus.PENDING: frozenset({JobStatus.RUNNING, JobStatus.CANCELLED}),
     JobStatus.RUNNING: frozenset(
-        {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}
+        {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.RETRYING}
     ),
     JobStatus.FAILED: frozenset({JobStatus.RETRYING, JobStatus.CANCELLED}),
     JobStatus.RETRYING: frozenset({JobStatus.RUNNING, JobStatus.CANCELLED}),
@@ -139,6 +139,7 @@ class Job:
         require(self.can_retry, f"max retries reached ({self._max_retries})")
         self._transition(JobStatus.RETRYING)
         self._retry_count += 1
+        self._completed_at = None
 
     def resume(self) -> None:
         self._transition(JobStatus.RUNNING)
@@ -191,10 +192,7 @@ class Job:
         )
         payload = data.get("payload", {})
         payload_hash = data["payload_hash"]
-        require(
-            hash_json(payload) == payload_hash,
-            "payload hash mismatch",
-        )
+        require(hash_json(payload) == payload_hash, "payload hash mismatch")
         job = cls(
             job_id=data["job_id"],
             job_type=JobType(data["job_type"]),

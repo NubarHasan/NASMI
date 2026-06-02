@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from core.guards import require
 from core.identifiers import generate_ocr_line_id, is_valid_ocr_line_id
@@ -115,3 +116,24 @@ class OcrLine:
         if not self.has_words:
             return self.confidence
         return round(sum(w.confidence for w in self.words) / len(self.words), 4)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ocr_line_id": self.ocr_line_id,
+            "text": self.text,
+            "confidence": self.confidence,
+            "bounding_box": self.bounding_box.to_dict(),
+            "words": [w.to_dict() for w in self.words],
+            "metadata": dict(self.metadata),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> OcrLine:
+        return cls(
+            ocr_line_id=data["ocr_line_id"],
+            text=data["text"],
+            confidence=data["confidence"],
+            bounding_box=BoundingBox.from_dict(data["bounding_box"]),
+            words=tuple(OcrWord.from_dict(w) for w in data.get("words", [])),
+            metadata=data.get("metadata", {}),
+        )

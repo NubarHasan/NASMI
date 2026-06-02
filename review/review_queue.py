@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from core.guards import require
 from core.identifiers import generate_review_queue_id, is_valid_review_queue_id
 from core.time import parse_timestamp
-from core.types import ReviewCaseId, ReviewQueueId
+from core.types import EntityId, ReviewCaseId, ReviewQueueId, UserId
 from review.review_case import ReviewCase
 from review.review_type import ReviewPriority, ReviewStatus
 
@@ -40,10 +40,10 @@ class ReviewQueue:
         )
 
     def enqueue(self, case: ReviewCase) -> ReviewQueue:
-        existing_ids = {c.review_id for c in self.cases}
+        existing_ids = {c.review_case_id for c in self.cases}
         require(
-            case.review_id not in existing_ids,
-            f"ReviewCase [{case.review_id}] is already in queue [{self.queue_id}]",
+            case.review_case_id not in existing_ids,
+            f"ReviewCase [{case.review_case_id}] is already in queue [{self.queue_id}]",
         )
         return ReviewQueue(
             queue_id=self.queue_id,
@@ -57,21 +57,21 @@ class ReviewQueue:
             cases=self.cases[1:],
         )
 
-    def remove(self, review_id: ReviewCaseId) -> ReviewQueue:
-        remaining = tuple(c for c in self.cases if c.review_id != review_id)
+    def remove(self, review_case_id: ReviewCaseId) -> ReviewQueue:
+        remaining = tuple(c for c in self.cases if c.review_case_id != review_case_id)
         require(
             len(remaining) < len(self.cases),
-            f"ReviewCase [{review_id}] not found in queue [{self.queue_id}]",
+            f"ReviewCase [{review_case_id}] not found in queue [{self.queue_id}]",
         )
         return ReviewQueue(queue_id=self.queue_id, cases=remaining)
 
     def update(self, updated_case: ReviewCase) -> ReviewQueue:
         require(
-            any(c.review_id == updated_case.review_id for c in self.cases),
-            f"ReviewCase [{updated_case.review_id}] not found in queue [{self.queue_id}]",
+            any(c.review_case_id == updated_case.review_case_id for c in self.cases),
+            f"ReviewCase [{updated_case.review_case_id}] not found in queue [{self.queue_id}]",
         )
         updated = tuple(
-            updated_case if c.review_id == updated_case.review_id else c
+            updated_case if c.review_case_id == updated_case.review_case_id else c
             for c in self.cases
         )
         return ReviewQueue(queue_id=self.queue_id, cases=self._sorted(updated))
@@ -85,16 +85,16 @@ class ReviewQueue:
             cases=tuple(c for c in self.cases if c.priority == priority),
         )
 
-    def by_entity(self, entity_id: str) -> tuple[ReviewCase, ...]:
+    def by_entity(self, entity_id: EntityId) -> tuple[ReviewCase, ...]:
         return tuple(c for c in self.cases if c.entity_id == entity_id)
 
     def pending(self) -> tuple[ReviewCase, ...]:
         return tuple(c for c in self.cases if c.status == ReviewStatus.PENDING)
 
     def escalated(self) -> tuple[ReviewCase, ...]:
-        return tuple(c for c in self.cases if c.status == ReviewStatus.ESCALATED)
+        return tuple(c for c in self.cases if c.priority == ReviewPriority.CRITICAL)
 
-    def assigned_to(self, reviewer: str) -> tuple[ReviewCase, ...]:
+    def assigned_to(self, reviewer: UserId) -> tuple[ReviewCase, ...]:
         return tuple(c for c in self.cases if c.assigned_to == reviewer)
 
     def open_cases(self) -> tuple[ReviewCase, ...]:

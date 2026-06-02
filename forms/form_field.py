@@ -79,6 +79,10 @@ class FieldRule:
             all(isinstance(v, str) for v in values),
             "all allowed_values must be strings",
         )
+        require(
+            len(set(values)) == len(values),
+            "allowed_values must not contain duplicates",
+        )
         return cls.create(RuleType.ALLOWED_VALUES, tuple(values))
 
 
