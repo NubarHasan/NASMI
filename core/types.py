@@ -32,6 +32,15 @@ VaultId = NewType("VaultId", str)
 FormFieldId = NewType("FormFieldId", str)
 FormTemplateId = NewType("FormTemplateId", str)
 FormSubmissionId = NewType("FormSubmissionId", str)
+OcrBlockId = NewType("OcrBlockId", str)
+OcrCellId = NewType("OcrCellId", str)
+OcrRowId = NewType("OcrRowId", str)
+OcrTableId = NewType("OcrTableId", str)
+OcrPageId = NewType("OcrPageId", str)
+OcrResultId = NewType("OcrResultId", str)
+OcrRequestId = NewType("OcrRequestId", str)
+OcrLineId = NewType("OcrLineId", str)
+OcrWordId = NewType("OcrWordId", str)
 
 HashValue: TypeAlias = str
 HMACValue: TypeAlias = str

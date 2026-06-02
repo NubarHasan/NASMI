@@ -140,3 +140,27 @@ class FileSystemError(CoreError):
 
 class TransactionError(CoreError):
     pass
+
+
+class OcrError(NasmiError):
+    pass
+
+
+class OcrProcessingError(OcrError):
+    pass
+
+
+class OcrLowConfidenceError(OcrError):
+    pass
+
+
+class OcrPreprocessingError(OcrError):
+    pass
+
+
+class OcrEngineError(OcrError):
+    pass
+
+
+class OcrLanguageError(OcrError):
+    pass

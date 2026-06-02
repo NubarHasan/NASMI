@@ -23,6 +23,15 @@ from core.types import (
     FormTemplateId,
     JobId,
     KnowledgeId,
+    OcrBlockId,
+    OcrCellId,
+    OcrLineId,
+    OcrPageId,
+    OcrRequestId,
+    OcrResultId,
+    OcrRowId,
+    OcrTableId,
+    OcrWordId,
     PackageId,
     ProfileId,
     ProvenanceId,
@@ -67,6 +76,15 @@ _PREFIX_FORM_SUBMISSION: str = "FSB"
 _PREFIX_CANDIDATE_FACT: str = "CFT"
 _PREFIX_EXTRACTION_RESULT: str = "EXR"
 _PREFIX_EXTRACTION_REQUEST: str = "EXQ"
+_PREFIX_OCR_BLOCK: str = "OCB"
+_PREFIX_OCR_CELL: str = "OCL"
+_PREFIX_OCR_ROW: str = "OWR"
+_PREFIX_OCR_TABLE: str = "OTB"
+_PREFIX_OCR_PAGE: str = "OPG"
+_PREFIX_OCR_RESULT: str = "ORS"
+_PREFIX_OCR_REQUEST: str = "ORQ"
+_PREFIX_OCR_LINE: str = "OLN"
+_PREFIX_OCR_WORD: str = "OWD"
 
 _KNOWN_PREFIXES: frozenset[str] = frozenset(
     {
@@ -99,6 +117,15 @@ _KNOWN_PREFIXES: frozenset[str] = frozenset(
         _PREFIX_CANDIDATE_FACT,
         _PREFIX_EXTRACTION_RESULT,
         _PREFIX_EXTRACTION_REQUEST,
+        _PREFIX_OCR_BLOCK,
+        _PREFIX_OCR_CELL,
+        _PREFIX_OCR_ROW,
+        _PREFIX_OCR_TABLE,
+        _PREFIX_OCR_PAGE,
+        _PREFIX_OCR_RESULT,
+        _PREFIX_OCR_REQUEST,
+        _PREFIX_OCR_LINE,
+        _PREFIX_OCR_WORD,
     }
 )
 
@@ -227,6 +254,42 @@ def generate_form_submission_id() -> FormSubmissionId:
     return FormSubmissionId(generate_id(_PREFIX_FORM_SUBMISSION))
 
 
+def generate_ocr_block_id() -> OcrBlockId:
+    return OcrBlockId(generate_id(_PREFIX_OCR_BLOCK))
+
+
+def generate_ocr_cell_id() -> OcrCellId:
+    return OcrCellId(generate_id(_PREFIX_OCR_CELL))
+
+
+def generate_ocr_row_id() -> OcrRowId:
+    return OcrRowId(generate_id(_PREFIX_OCR_ROW))
+
+
+def generate_ocr_table_id() -> OcrTableId:
+    return OcrTableId(generate_id(_PREFIX_OCR_TABLE))
+
+
+def generate_ocr_page_id() -> OcrPageId:
+    return OcrPageId(generate_id(_PREFIX_OCR_PAGE))
+
+
+def generate_ocr_result_id() -> OcrResultId:
+    return OcrResultId(generate_id(_PREFIX_OCR_RESULT))
+
+
+def generate_ocr_request_id() -> OcrRequestId:
+    return OcrRequestId(generate_id(_PREFIX_OCR_REQUEST))
+
+
+def generate_ocr_line_id() -> OcrLineId:
+    return OcrLineId(generate_id(_PREFIX_OCR_LINE))
+
+
+def generate_ocr_word_id() -> OcrWordId:
+    return OcrWordId(generate_id(_PREFIX_OCR_WORD))
+
+
 def is_valid_id(value: str, prefix: str) -> bool:
     if not isinstance(value, str):
         return False
@@ -353,6 +416,42 @@ def is_valid_form_template_id(value: str) -> bool:
 
 def is_valid_form_submission_id(value: str) -> bool:
     return is_valid_id(value, _PREFIX_FORM_SUBMISSION)
+
+
+def is_valid_ocr_block_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_OCR_BLOCK)
+
+
+def is_valid_ocr_cell_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_OCR_CELL)
+
+
+def is_valid_ocr_row_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_OCR_ROW)
+
+
+def is_valid_ocr_table_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_OCR_TABLE)
+
+
+def is_valid_ocr_page_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_OCR_PAGE)
+
+
+def is_valid_ocr_result_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_OCR_RESULT)
+
+
+def is_valid_ocr_request_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_OCR_REQUEST)
+
+
+def is_valid_ocr_line_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_OCR_LINE)
+
+
+def is_valid_ocr_word_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_OCR_WORD)
 
 
 def parse_id(value: str) -> tuple[str, str]:
