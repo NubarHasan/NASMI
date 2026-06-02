@@ -1,0 +1,92 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+wheels/
+sdist/
+develop-eggs/
+.eggs/
+lib/
+lib64/
+parts/
+var/
+htmlcov/
+.tox/
+.nox/
+.cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+.pytest_cache/
+.hypothesis/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.env
+
+# Coverage
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# Distribution / packaging
+MANIFEST
+
+# IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Secrets / config
+.env
+.env.*
+secrets.toml
+config.local.toml
+
+# Data / models (large files)
+data/
+models/
+weights/
+*.pt
+*.pth
+*.onnx
+*.bin
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+
+# Uploads / outputs
+uploads/
+output/
+exports/
+temp/
+tmp/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Type stubs
+*.pyi
