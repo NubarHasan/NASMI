@@ -15,6 +15,7 @@ from core.time import format_timestamp, parse_timestamp, utcnow
 class ArtifactType(StrEnum):
     DOCUMENT = "document"
     EVIDENCE = "evidence"
+    EXTRACTION = "extraction"
     FACT = "fact"
     OCR = "ocr"
     PROFILE = "profile"
@@ -146,6 +147,80 @@ class EvidenceArtifact(BaseArtifact):
             created_at=utcnow(),
             source_artifact_ids=source_artifact_ids,
             evidence_id=evidence_id,
+            snapshot=copy.deepcopy(snapshot),
+        )
+
+
+@dataclass(frozen=True)
+class ExtractionArtifact(BaseArtifact):
+    document_id: str
+    source_id: str
+    extractor_id: str
+    candidate_fact_count: int
+    mean_confidence: float
+    snapshot: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        base = super().to_dict()
+        base["document_id"] = self.document_id
+        base["source_id"] = self.source_id
+        base["extractor_id"] = self.extractor_id
+        base["candidate_fact_count"] = self.candidate_fact_count
+        base["mean_confidence"] = self.mean_confidence
+        base["snapshot"] = copy.deepcopy(self.snapshot)
+        return base
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ExtractionArtifact:
+        return cls(
+            **BaseArtifact._base_fields(data),
+            document_id=data["document_id"],
+            source_id=data["source_id"],
+            extractor_id=data["extractor_id"],
+            candidate_fact_count=data["candidate_fact_count"],
+            mean_confidence=data["mean_confidence"],
+            snapshot=copy.deepcopy(data["snapshot"]),
+        )
+
+    @classmethod
+    def create(
+        cls,
+        job_id: str,
+        stage: str,
+        document_id: str,
+        source_id: str,
+        extractor_id: str,
+        candidate_fact_count: int,
+        mean_confidence: float,
+        snapshot: dict[str, Any],
+        source_artifact_ids: tuple[str, ...] = (),
+    ) -> ExtractionArtifact:
+        require(bool(job_id), "job_id must be non-empty")
+        require(bool(stage), "stage must be non-empty")
+        require(bool(document_id), "document_id must be non-empty")
+        require(bool(source_id), "source_id must be non-empty")
+        require(bool(extractor_id), "extractor_id must be non-empty")
+        require(
+            isinstance(candidate_fact_count, int) and candidate_fact_count >= 0,
+            "candidate_fact_count must be a non-negative int",
+        )
+        require(
+            0.0 <= mean_confidence <= 1.0,
+            "mean_confidence must be in [0.0, 1.0]",
+        )
+        _validate_source_ids(source_artifact_ids)
+        return cls(
+            artifact_id=generate_artifact_id(),
+            artifact_type=ArtifactType.EXTRACTION,
+            job_id=job_id,
+            stage=stage,
+            created_at=utcnow(),
+            source_artifact_ids=source_artifact_ids,
+            document_id=document_id,
+            source_id=source_id,
+            extractor_id=extractor_id,
+            candidate_fact_count=candidate_fact_count,
+            mean_confidence=mean_confidence,
             snapshot=copy.deepcopy(snapshot),
         )
 
@@ -359,6 +434,7 @@ class IntermediateArtifact(BaseArtifact):
 Artifact = (
     DocumentArtifact
     | EvidenceArtifact
+    | ExtractionArtifact
     | FactArtifact
     | OcrArtifact
     | ProfileArtifact
@@ -374,6 +450,7 @@ class _ArtifactDecoder(Protocol):
 _ARTIFACT_REGISTRY: dict[str, _ArtifactDecoder] = {
     ArtifactType.DOCUMENT: DocumentArtifact,
     ArtifactType.EVIDENCE: EvidenceArtifact,
+    ArtifactType.EXTRACTION: ExtractionArtifact,
     ArtifactType.FACT: FactArtifact,
     ArtifactType.OCR: OcrArtifact,
     ArtifactType.PROFILE: ProfileArtifact,

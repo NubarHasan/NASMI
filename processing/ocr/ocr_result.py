@@ -28,7 +28,8 @@ class OcrResult:
         )
         require(isinstance(self.source_id, str), "source_id must be a str")
         require(
-            is_valid_source_id(self.source_id), "source_id must be a valid SourceId"
+            is_valid_source_id(self.source_id),
+            "source_id must be a valid SourceId",
         )
         require(isinstance(self.pages, tuple), "pages must be a tuple")
         require(
@@ -110,6 +111,9 @@ class OcrResult:
             "source_id": self.source_id,
             "pages": [p.to_dict() for p in self.pages],
             "metadata": dict(self.metadata),
+            "full_text": self.full_text,
+            "page_count": self.page_count,
+            "mean_confidence": self.mean_confidence,
         }
 
     @classmethod

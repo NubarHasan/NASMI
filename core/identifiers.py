@@ -41,6 +41,7 @@ from core.types import (
     ReviewId,
     ReviewQueueId,
     SourceId,
+    SpanId,
     UserId,
     ValidationReportId,
     VaultId,
@@ -87,6 +88,7 @@ _PREFIX_OCR_REQUEST: str = "ORQ"
 _PREFIX_OCR_LINE: str = "OLN"
 _PREFIX_OCR_WORD: str = "OWD"
 _PREFIX_VALIDATION_REPORT: str = "VRP"
+_PREFIX_SPAN: str = "ESP"
 
 _KNOWN_PREFIXES: frozenset[str] = frozenset(
     {
@@ -129,6 +131,7 @@ _KNOWN_PREFIXES: frozenset[str] = frozenset(
         _PREFIX_OCR_LINE,
         _PREFIX_OCR_WORD,
         _PREFIX_VALIDATION_REPORT,
+        _PREFIX_SPAN,
     }
 )
 
@@ -139,6 +142,10 @@ def generate_id(prefix: str) -> str:
     require(prefix in _KNOWN_PREFIXES, f"unknown prefix: {prefix}")
     body = uuid.uuid4().hex.upper()
     return f"{prefix}-{body}"
+
+
+def generate_span_id() -> SpanId:
+    return SpanId(generate_id(_PREFIX_SPAN))
 
 
 def generate_candidate_fact_id() -> CandidateFactId:
@@ -307,6 +314,10 @@ def is_valid_id(value: str, prefix: str) -> bool:
     if not _ID_PATTERN.match(value):
         return False
     return value.startswith(f"{prefix}-")
+
+
+def is_valid_span_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_SPAN)
 
 
 def is_valid_candidate_fact_id(value: str) -> bool:
