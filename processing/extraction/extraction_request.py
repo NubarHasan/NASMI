@@ -8,8 +8,10 @@ from core.guards import require
 from core.identifiers import generate_extraction_request_id
 from core.time import utcnow
 from core.types import (
+    DocumentId,
     EntityId,
     ExtractionRequestId,
+    SourceId,
 )
 from processing.extraction.extractable_content import ExtractableContent
 
@@ -25,8 +27,8 @@ class ExtractionRequest:
 
     def __post_init__(self) -> None:
         require(
-            isinstance(self.entity_id, EntityId),
-            "entity_id must be an EntityId instance",
+            isinstance(self.entity_id, str) and bool(self.entity_id.strip()),
+            "entity_id must be a non-empty string",
         )
         require(
             isinstance(self.content, ExtractableContent),
@@ -53,16 +55,16 @@ class ExtractionRequest:
         )
 
     @property
-    def source_id(self):
+    def source_id(self) -> SourceId:
         return self.content.source_id
 
     @property
-    def document_id(self):
+    def document_id(self) -> DocumentId:
         return self.content.document_id
 
     @property
     def language(self) -> str:
-        return self.content.language
+        return self.content.language or ""
 
     @property
     def is_low_quality(self) -> bool:

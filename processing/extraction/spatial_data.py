@@ -296,15 +296,15 @@ class ExtractableSpan:
 
 def _word_based_confidence(line: Any) -> ConfidenceScore:
     if not line.has_words:
-        return line.confidence
-    return round(sum(w.confidence for w in line.words) / len(line.words), 4)
+        return float(line.confidence)
+    return float(round(sum(w.confidence for w in line.words) / len(line.words), 4))
 
 
 def _block_confidence_from_words(block: Any) -> ConfidenceScore:
     words = [w for line in block.lines for w in line.words]
     if not words:
-        return block.confidence
-    return round(sum(w.confidence for w in words) / len(words), 4)
+        return float(block.confidence)
+    return float(round(sum(w.confidence for w in words) / len(words), 4))
 
 
 def _build_block_spans(page: Any) -> list[ExtractableSpan]:
