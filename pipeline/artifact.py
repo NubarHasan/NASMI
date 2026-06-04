@@ -10,6 +10,8 @@ from core.exceptions import ValidationError
 from core.guards import require
 from core.identifiers import generate_artifact_id
 from core.time import format_timestamp, parse_timestamp, utcnow
+from output.output_format import OutputFormat
+from output.output_type import OutputType
 
 
 class ArtifactType(StrEnum):
@@ -22,6 +24,7 @@ class ArtifactType(StrEnum):
     FACT = "fact"
     OCR = "ocr"
     PROFILE = "profile"
+    OUTPUT = "output"
     INTERMEDIATE = "intermediate"
 
 
@@ -610,6 +613,74 @@ class ProfileArtifact(BaseArtifact):
 
 
 @dataclass(frozen=True)
+class OutputArtifact(BaseArtifact):
+    entity_id: str
+    output_document_id: str
+    output_type: OutputType
+    output_format: OutputFormat
+    file_path: str
+
+    def to_dict(self) -> dict[str, Any]:
+        base = super().to_dict()
+        base["entity_id"] = self.entity_id
+        base["output_document_id"] = self.output_document_id
+        base["output_type"] = str(self.output_type)
+        base["output_format"] = str(self.output_format)
+        base["file_path"] = self.file_path
+        return base
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> OutputArtifact:
+        return cls(
+            **BaseArtifact._base_fields(data),
+            entity_id=data["entity_id"],
+            output_document_id=data["output_document_id"],
+            output_type=OutputType(data["output_type"]),
+            output_format=OutputFormat(data["output_format"]),
+            file_path=data["file_path"],
+        )
+
+    @classmethod
+    def create(
+        cls,
+        job_id: str,
+        stage: str,
+        entity_id: str,
+        output_document_id: str,
+        output_type: OutputType,
+        output_format: OutputFormat,
+        file_path: str,
+        source_artifact_ids: tuple[str, ...] = (),
+    ) -> OutputArtifact:
+        require(bool(job_id), "job_id must be non-empty")
+        require(bool(stage), "stage must be non-empty")
+        require(bool(entity_id), "entity_id must be non-empty")
+        require(bool(output_document_id), "output_document_id must be non-empty")
+        require(
+            isinstance(output_type, OutputType), "output_type must be an OutputType"
+        )
+        require(
+            isinstance(output_format, OutputFormat),
+            "output_format must be an OutputFormat",
+        )
+        require(bool(file_path), "file_path must be non-empty")
+        _validate_source_ids(source_artifact_ids)
+        return cls(
+            artifact_id=generate_artifact_id(),
+            artifact_type=ArtifactType.OUTPUT,
+            job_id=job_id,
+            stage=stage,
+            created_at=utcnow(),
+            source_artifact_ids=source_artifact_ids,
+            entity_id=entity_id,
+            output_document_id=output_document_id,
+            output_type=output_type,
+            output_format=output_format,
+            file_path=file_path,
+        )
+
+
+@dataclass(frozen=True)
 class IntermediateArtifact(BaseArtifact):
     key: str
     payload: dict[str, Any]
@@ -663,6 +734,7 @@ Artifact = (
     | FactArtifact
     | OcrArtifact
     | ProfileArtifact
+    | OutputArtifact
     | IntermediateArtifact
 )
 
@@ -682,6 +754,7 @@ _ARTIFACT_REGISTRY: dict[str, _ArtifactDecoder] = {
     ArtifactType.FACT: FactArtifact,
     ArtifactType.OCR: OcrArtifact,
     ArtifactType.PROFILE: ProfileArtifact,
+    ArtifactType.OUTPUT: OutputArtifact,
     ArtifactType.INTERMEDIATE: IntermediateArtifact,
 }
 

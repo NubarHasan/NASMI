@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +12,6 @@ from core.time import utcnow
 from knowledge.provenance import Provenance, ProvenanceStep
 from output.output_document import OutputDocument
 from output.output_format import OutputFormat
-from output.output_generator import OutputGenerator
 from output.output_ids import OutputDocumentId, generate_output_document_id
 from output.output_request import OutputRequest
 from output.output_type import OutputType
@@ -20,12 +19,20 @@ from output.output_type import OutputType
 _SCHEMA_VERSION: int = 1
 
 
+def _serialize_canonical(value: Any) -> Any:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    return value
+
+
 def _step_to_dict(step: ProvenanceStep) -> dict[str, Any]:
     return {
         "step_order": step.step_order,
         "action": step.action,
         "actor": step.actor,
-        "occurred_at": step.occurred_at,
+        "occurred_at": _serialize_canonical(step.occurred_at),
         "evidence_id": str(step.evidence_id) if step.evidence_id is not None else None,
         "note": step.note,
     }
@@ -37,13 +44,13 @@ def _provenance_to_dict(provenance: Provenance) -> dict[str, Any]:
         "fact_id": str(provenance.fact_id),
         "entity_id": str(provenance.entity_id),
         "summary": provenance.summary,
-        "created_at": provenance.created_at,
+        "created_at": _serialize_canonical(provenance.created_at),
         "step_count": len(provenance.decision_chain),
         "decision_chain": [_step_to_dict(step) for step in provenance.decision_chain],
     }
 
 
-class ProvenanceReportJsonGenerator(OutputGenerator):
+class ProvenanceReportJsonGenerator:
 
     def __init__(
         self,
@@ -119,11 +126,7 @@ class ProvenanceReportJsonGenerator(OutputGenerator):
 
         write_atomic_text(
             output_path,
-            json.dumps(
-                envelope,
-                ensure_ascii=False,
-                indent=2,
-            ),
+            json.dumps(envelope, ensure_ascii=False, indent=2),
         )
 
         return OutputDocument(

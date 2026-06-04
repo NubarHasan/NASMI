@@ -37,13 +37,13 @@ def _fact_to_dict(fact: Fact) -> dict[str, Any]:
         "value_type": fact.value_type,
         "confidence": fact.confidence,
         "source_stage": fact.source_stage,
-        "created_at": fact.created_at,
-        "accepted_at": fact.accepted_at,
+        "created_at": _serialize_canonical(fact.created_at),
+        "accepted_at": _serialize_canonical(fact.accepted_at),
         "accepted_by": fact.accepted_by,
     }
 
 
-class FactExportJsonGenerator(OutputGenerator):
+class FactExportJsonGenerator:
 
     def __init__(
         self,

@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 from typing import Protocol, runtime_checkable
 
-from core.validation import require
-
+from core.guards import require
 from output.output_document import OutputDocument
 from output.output_request import OutputRequest
 from output.output_type import OutputType

@@ -12,7 +12,6 @@ from core.time import utcnow
 from knowledge.evidence import Evidence
 from output.output_document import OutputDocument
 from output.output_format import OutputFormat
-from output.output_generator import OutputGenerator
 from output.output_ids import OutputDocumentId, generate_output_document_id
 from output.output_request import OutputRequest
 from output.output_type import OutputType
@@ -43,7 +42,7 @@ def _evidence_to_dict(evidence: Evidence) -> dict[str, Any]:
     }
 
 
-class EvidenceReportJsonGenerator(OutputGenerator):
+class EvidenceReportJsonGenerator:
 
     def __init__(
         self,

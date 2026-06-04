@@ -12,7 +12,6 @@ from core.time import utcnow
 from knowledge.conflict import Conflict
 from output.output_document import OutputDocument
 from output.output_format import OutputFormat
-from output.output_generator import OutputGenerator
 from output.output_ids import OutputDocumentId, generate_output_document_id
 from output.output_request import OutputRequest
 from output.output_type import OutputType
@@ -51,7 +50,7 @@ def _conflict_to_dict(conflict: Conflict) -> dict[str, Any]:
     }
 
 
-class ConflictReportJsonGenerator(OutputGenerator):
+class ConflictReportJsonGenerator:
 
     def __init__(
         self,

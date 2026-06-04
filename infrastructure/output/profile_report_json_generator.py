@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -23,8 +23,6 @@ _SCHEMA_VERSION: int = 1
 def _serialize_canonical(value: Any) -> Any:
     if isinstance(value, datetime):
         return value.isoformat()
-    from datetime import date
-
     if isinstance(value, date):
         return value.isoformat()
     return value
@@ -37,7 +35,7 @@ def _serialize_profile_field(f: ProfileField) -> dict[str, Any]:
         "display_value": f.display_value,
         "confidence": f.confidence,
         "fact_id": str(f.fact_id),
-        "sourced_at": f.sourced_at,
+        "sourced_at": _serialize_canonical(f.sourced_at),
     }
 
 
@@ -47,14 +45,14 @@ def _serialize_profile(profile: Profile) -> dict[str, Any]:
         "entity_type": profile.entity_type,
         "display_name": profile.display_name,
         "completeness": profile.completeness,
-        "computed_at": profile.computed_at,
+        "computed_at": _serialize_canonical(profile.computed_at),
         "field_count": len(profile.fields),
         "fields": [_serialize_profile_field(f) for f in profile.fields.values()],
         "metadata": {k: _serialize_canonical(v) for k, v in profile.metadata.items()},
     }
 
 
-class ProfileReportJsonGenerator(OutputGenerator):
+class ProfileReportJsonGenerator:
 
     def __init__(
         self,
@@ -94,11 +92,11 @@ class ProfileReportJsonGenerator(OutputGenerator):
         )
 
         profile = self._profile_query.get_profile(request.subject_id)
-
         require(
             profile is not None,
             f"no profile found for entity {request.subject_id!r}",
         )
+        assert profile is not None
 
         output_document_id: OutputDocumentId = generate_output_document_id()
         generated_at: datetime = utcnow()
@@ -119,14 +117,9 @@ class ProfileReportJsonGenerator(OutputGenerator):
         )
 
         ensure_directory(file_path.parent)
-
         write_atomic_text(
             file_path,
-            json.dumps(
-                envelope,
-                ensure_ascii=False,
-                indent=2,
-            ),
+            json.dumps(envelope, ensure_ascii=False, indent=2),
         )
 
         return OutputDocument(

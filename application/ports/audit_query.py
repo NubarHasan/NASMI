@@ -1,36 +1,48 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from datetime import datetime
+from typing import Protocol
 
-from audit.audit_chain import AuditChain
-from audit.audit_entry import AuditEntry
-from core.types import AuditId, EntityId, JobId
+from audit.audit_event import AuditEvent
+from knowledge.provenance_step import ProvenanceStep
+
+from core.types import DocumentId, EntityId, FactId, ReviewerId
 
 
-class AuditQueryService(ABC):
+class AuditQuery(Protocol):
 
-    @abstractmethod
-    def get_by_id(
+    def list_events_by_entity(
         self,
-        audit_id: AuditId,
-    ) -> AuditEntry | None: ...
+        entity_id: EntityId,
+    ) -> tuple[AuditEvent, ...]: ...
 
-    @abstractmethod
-    def list_by_subject(
+    def list_events_by_fact(
         self,
-        subject_id: EntityId,
-    ) -> tuple[AuditEntry, ...]: ...
+        fact_id: FactId,
+    ) -> tuple[AuditEvent, ...]: ...
 
-    @abstractmethod
-    def list_by_job(
+    def list_events_by_reviewer(
         self,
-        job_id: JobId,
-    ) -> tuple[AuditEntry, ...]: ...
+        reviewer_id: ReviewerId,
+    ) -> tuple[AuditEvent, ...]: ...
 
-    @abstractmethod
-    def get_chain(
+    def list_events_in_range(
         self,
-        *,
-        subject_id: EntityId | None = None,
-        job_id: JobId | None = None,
-    ) -> AuditChain: ...
+        start: datetime,
+        end: datetime,
+    ) -> tuple[AuditEvent, ...]: ...
+
+    def list_steps_by_fact(
+        self,
+        fact_id: FactId,
+    ) -> tuple[ProvenanceStep, ...]: ...
+
+    def list_steps_by_document(
+        self,
+        document_id: DocumentId,
+    ) -> tuple[ProvenanceStep, ...]: ...
+
+    def verify_fact_integrity(
+        self,
+        fact_id: FactId,
+    ) -> bool: ...

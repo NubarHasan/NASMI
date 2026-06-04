@@ -27,8 +27,11 @@ class JobType(StrEnum):
     EXTRACTION = "extraction"
     ENTITY_RESOLUTION = "entity_resolution"
     KNOWLEDGE_BUILD = "knowledge_build"
+    FACT_ACCEPTANCE = "fact_acceptance"
+    PROFILE_BUILD = "profile_build"
     FORM_FILL = "form_fill"
     EXPORT = "export"
+    OUTPUT_BUILD = "output_build"
 
 
 class JobStatus(StrEnum):
@@ -68,36 +71,35 @@ class Job:
     _cancelled_at: datetime | None = field(default=None, repr=False, init=False)
     _retry_count: int = field(default=0, repr=False, init=False)
     _max_retries: int = field(default=3, repr=False, init=False)
-
-    def get_payload(self) -> dict[str, Any]:
-        return copy.deepcopy(self._payload)
-
-    def payload_copy(self) -> dict[str, Any]:
-        return copy.deepcopy(self._payload)
+    _knowledge_service: Any = field(default=None, repr=False, init=False)
+    _profile: Any = field(default=None, repr=False, init=False)
 
     @property
-    def started_at(self) -> datetime | None:
-        return self._started_at
+    def knowledge_service(self) -> Any:
+        require(
+            self._knowledge_service is not None,
+            "knowledge_service has not been attached to this Job",
+        )
+        return self._knowledge_service
+
+    def attach_knowledge_service(self, service: Any) -> None:
+        require(service is not None, "service must not be None")
+        self._knowledge_service = service
 
     @property
-    def completed_at(self) -> datetime | None:
-        return self._completed_at
+    def profile(self) -> Any:
+        return self._profile
+
+    def set_profile(self, profile: Any) -> None:
+        require(profile is not None, "profile must not be None")
+        self._profile = profile
 
     @property
-    def cancelled_at(self) -> datetime | None:
-        return self._cancelled_at
+    def bundle(self) -> Any:
+        return self.context.artifacts
 
-    @property
-    def retry_count(self) -> int:
-        return self._retry_count
-
-    @property
-    def max_retries(self) -> int:
-        return self._max_retries
-
-    @property
-    def can_retry(self) -> bool:
-        return self._retry_count < self._max_retries
+    def set_stage(self, stage: str) -> None:
+        self.context.set_stage(stage)
 
     def advance_stage(self, stage: str) -> None:
         self.context.set_stage(stage)
@@ -109,6 +111,12 @@ class Job:
     @property
     def stage_history(self) -> list[str]:
         return self.context.stage_history
+
+    def get_payload(self) -> dict[str, Any]:
+        return copy.deepcopy(self._payload)
+
+    def payload_copy(self) -> dict[str, Any]:
+        return copy.deepcopy(self._payload)
 
     def _transition(self, target: JobStatus) -> None:
         allowed = _ALLOWED_TRANSITIONS.get(self.status, frozenset())
@@ -144,6 +152,30 @@ class Job:
 
     def resume(self) -> None:
         self._transition(JobStatus.RUNNING)
+
+    @property
+    def started_at(self) -> datetime | None:
+        return self._started_at
+
+    @property
+    def completed_at(self) -> datetime | None:
+        return self._completed_at
+
+    @property
+    def cancelled_at(self) -> datetime | None:
+        return self._cancelled_at
+
+    @property
+    def retry_count(self) -> int:
+        return self._retry_count
+
+    @property
+    def max_retries(self) -> int:
+        return self._max_retries
+
+    @property
+    def can_retry(self) -> bool:
+        return self._retry_count < self._max_retries
 
     @property
     def is_terminal(self) -> bool:

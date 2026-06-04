@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime
 
-from core.entity import EntityId
-from core.validation import is_valid_entity_id, require
-
+from core.guards import require
+from core.identifiers import is_valid_entity_id
+from core.types import EntityId
 from output.output_format import OutputFormat
 from output.output_type import OutputType
 

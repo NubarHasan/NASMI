@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from types import MappingProxyType
 
-from core.validation import require
-
+from core.guards import require
 from output.output_format import OutputFormat
 from output.output_source import OutputSource
 from output.output_type import OutputType
