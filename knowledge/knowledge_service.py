@@ -351,6 +351,22 @@ class KnowledgeService:
         self._store._facts[fact.fact_id] = accepted
         return accepted
 
+    def register_conflict(self, conflict: Conflict) -> Conflict:
+        require(
+            isinstance(conflict, Conflict),
+            "conflict must be a Conflict",
+        )
+        require(
+            conflict.status is ConflictStatus.OPEN,
+            "registered conflict must be OPEN",
+        )
+        require(
+            conflict.conflict_id not in self._store._conflicts,
+            f"conflict {conflict.conflict_id!r} already registered",
+        )
+        self._store._conflicts[conflict.conflict_id] = conflict
+        return conflict
+
     def _link_corroborating_evidence(
         self,
         accepted: Fact,

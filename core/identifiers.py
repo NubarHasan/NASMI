@@ -11,6 +11,7 @@ from core.types import (
     ConflictId,
     DocumentId,
     EntityId,
+    EntityResolutionResultId,
     EvidenceId,
     ExtractionRequestId,
     ExtractionResultId,
@@ -22,6 +23,7 @@ from core.types import (
     FormSubmissionId,
     FormTemplateId,
     JobId,
+    KnowledgeBuildResultId,
     KnowledgeId,
     OcrBlockId,
     OcrCellId,
@@ -89,6 +91,8 @@ _PREFIX_OCR_LINE: str = "OLN"
 _PREFIX_OCR_WORD: str = "OWD"
 _PREFIX_VALIDATION_REPORT: str = "VRP"
 _PREFIX_SPAN: str = "ESP"
+_PREFIX_ENTITY_RESOLUTION_RESULT: str = "ERS"
+_PREFIX_KNOWLEDGE_BUILD_RESULT: str = "KBR"
 
 _KNOWN_PREFIXES: frozenset[str] = frozenset(
     {
@@ -132,6 +136,8 @@ _KNOWN_PREFIXES: frozenset[str] = frozenset(
         _PREFIX_OCR_WORD,
         _PREFIX_VALIDATION_REPORT,
         _PREFIX_SPAN,
+        _PREFIX_ENTITY_RESOLUTION_RESULT,
+        _PREFIX_KNOWLEDGE_BUILD_RESULT,
     }
 )
 
@@ -286,6 +292,10 @@ def generate_ocr_page_id() -> OcrPageId:
 
 def generate_ocr_result_id() -> OcrResultId:
     return OcrResultId(generate_id(_PREFIX_OCR_RESULT))
+
+
+def generate_entity_resolution_result_id() -> EntityResolutionResultId:
+    return EntityResolutionResultId(generate_id(_PREFIX_ENTITY_RESOLUTION_RESULT))
 
 
 def generate_ocr_request_id() -> OcrRequestId:
@@ -474,6 +484,14 @@ def is_valid_ocr_word_id(value: str) -> bool:
 
 def is_valid_validation_report_id(value: str) -> bool:
     return is_valid_id(value, _PREFIX_VALIDATION_REPORT)
+
+
+def generate_knowledge_build_result_id() -> KnowledgeBuildResultId:
+    return KnowledgeBuildResultId(generate_id(_PREFIX_KNOWLEDGE_BUILD_RESULT))
+
+
+def is_valid_knowledge_build_result_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_KNOWLEDGE_BUILD_RESULT)
 
 
 def parse_id(value: str) -> tuple[str, str]:

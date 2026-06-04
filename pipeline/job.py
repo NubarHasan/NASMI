@@ -25,6 +25,7 @@ class JobType(StrEnum):
     DOCUMENT_IMPORT = "document_import"
     OCR = "ocr"
     EXTRACTION = "extraction"
+    ENTITY_RESOLUTION = "entity_resolution"
     KNOWLEDGE_BUILD = "knowledge_build"
     FORM_FILL = "form_fill"
     EXPORT = "export"

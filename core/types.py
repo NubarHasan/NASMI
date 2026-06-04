@@ -44,6 +44,8 @@ OcrWordId = NewType("OcrWordId", str)
 ValidationReportId = NewType("ValidationReportId", str)
 SpanId = NewType("SpanId", str)
 ExtractorId = NewType("ExtractorId", str)
+EntityResolutionResultId = NewType("EntityResolutionResultId", str)
+KnowledgeBuildResultId = NewType("KnowledgeBuildResultId", str)
 
 HashValue: TypeAlias = str
 HMACValue: TypeAlias = str
