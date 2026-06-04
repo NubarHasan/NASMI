@@ -398,15 +398,15 @@ class EmploymentContractExtractor(GermanDocumentExtractor):
             if not match:
                 continue
 
-            raw_amount = match.group(1).strip() if match.lastindex >= 1 else ""
+            raw_amount = match.group(1).strip() if match.lastindex is not None and match.lastindex >= 1 else ""
             raw_currency = (
                 match.group(2).strip()
-                if match.lastindex >= 2 and match.group(2)
+                if match.lastindex is not None and match.lastindex >= 2 and match.group(2)
                 else ""
             )
             raw_interval = (
                 match.group(3).strip()
-                if match.lastindex >= 3 and match.group(3)
+                if match.lastindex is not None and match.lastindex >= 3 and match.group(3)
                 else ""
             )
 

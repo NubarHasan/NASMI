@@ -58,15 +58,43 @@ def _compare(lhs: Comparable, rhs: Comparable, relation: ConsistencyRelation) ->
         return lhs == rhs
     if relation is ConsistencyRelation.NOT_EQUAL:
         return lhs != rhs
-    if relation is ConsistencyRelation.LESS_THAN:
-        return lhs < rhs
-    if relation is ConsistencyRelation.LESS_THAN_OR_EQUAL:
-        return lhs <= rhs
-    if relation is ConsistencyRelation.GREATER_THAN:
-        return lhs > rhs
-    if relation is ConsistencyRelation.GREATER_THAN_OR_EQUAL:
-        return lhs >= rhs
-    return _unreachable(relation)
+
+    # للعمليات الترتيبية: يجب أن يكون lhs و rhs من نفس النوع
+    if isinstance(lhs, datetime) and isinstance(rhs, datetime):
+        if relation is ConsistencyRelation.LESS_THAN:
+            return lhs < rhs
+        if relation is ConsistencyRelation.LESS_THAN_OR_EQUAL:
+            return lhs <= rhs
+        if relation is ConsistencyRelation.GREATER_THAN:
+            return lhs > rhs
+        if relation is ConsistencyRelation.GREATER_THAN_OR_EQUAL:
+            return lhs >= rhs
+
+    if isinstance(lhs, float) and isinstance(rhs, float):
+        if relation is ConsistencyRelation.LESS_THAN:
+            return lhs < rhs
+        if relation is ConsistencyRelation.LESS_THAN_OR_EQUAL:
+            return lhs <= rhs
+        if relation is ConsistencyRelation.GREATER_THAN:
+            return lhs > rhs
+        if relation is ConsistencyRelation.GREATER_THAN_OR_EQUAL:
+            return lhs >= rhs
+
+    if isinstance(lhs, str) and isinstance(rhs, str):
+        if relation is ConsistencyRelation.LESS_THAN:
+            return lhs < rhs
+        if relation is ConsistencyRelation.LESS_THAN_OR_EQUAL:
+            return lhs <= rhs
+        if relation is ConsistencyRelation.GREATER_THAN:
+            return lhs > rhs
+        if relation is ConsistencyRelation.GREATER_THAN_OR_EQUAL:
+            return lhs >= rhs
+
+    # أنواع مختلفة — لا يمكن المقارنة الترتيبية
+    raise TypeError(
+        f"cannot compare {type(lhs).__name__} with {type(rhs).__name__} "
+        f"using relation [{relation}]"
+    )
 
 
 @dataclass(frozen=True)
@@ -149,8 +177,16 @@ class ConsistencyRule:
         )
 
         dependent_fact = dependent_facts[0]
-        primary_value = candidate_fact.normalized_value
-        dependent_value = dependent_fact.canonical_value
+        primary_value = (
+            str(candidate_fact.normalized_value)
+            if candidate_fact.normalized_value is not None
+            else ""
+        )
+        dependent_value = (
+            str(dependent_fact.canonical_value)
+            if dependent_fact.canonical_value is not None
+            else ""
+        )
 
         if self.comparison_type is ComparisonType.DATE:
             return self._evaluate_date(primary_value, dependent_value)

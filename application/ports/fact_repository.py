@@ -3,8 +3,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from core.types import EntityId, FactId
-from knowledge.fact import Fact
-from knowledge.knowledge_fact_type import KnowledgeFactType
+from knowledge.fact import Fact, FactStatus
 
 
 class FactRepository(Protocol):
@@ -15,31 +14,19 @@ class FactRepository(Protocol):
 
     def exists(self, fact_id: FactId) -> bool: ...
 
-    def list_by_entity(self, entity_id: EntityId) -> tuple[Fact, ...]: ...
+    def list_by_entity(
+        self,
+        entity_id: EntityId,
+    ) -> tuple[Fact, ...]: ...
 
     def list_by_entity_and_type(
         self,
         entity_id: EntityId,
-        fact_type: KnowledgeFactType,
+        fact_type: str,
     ) -> tuple[Fact, ...]: ...
 
-    def list_pending(self, entity_id: EntityId) -> tuple[Fact, ...]: ...
-
-    def list_accepted(self, entity_id: EntityId) -> tuple[Fact, ...]: ...
-
-    def list_rejected(self, entity_id: EntityId) -> tuple[Fact, ...]: ...
-
-    def list_archived(self, entity_id: EntityId) -> tuple[Fact, ...]: ...
-
-    def accept(self, fact_id: FactId) -> None: ...
-
-    def reject(self, fact_id: FactId) -> None: ...
-
-    def archive(
+    def list_by_status(
         self,
-        fact_id: FactId,
-        reason: str,
-        archived_by: str,
-    ) -> None: ...
-
-    def restore(self, fact_id: FactId) -> None: ...
+        entity_id: EntityId,
+        status: FactStatus,
+    ) -> tuple[Fact, ...]: ...

@@ -2,42 +2,31 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from output.application_package import ApplicationPackage
-from output.package_status import PackageStatus
+from output.application_package_manifest import ApplicationPackageManifest
 
-from core.types import ApplicationPackageId, EntityId, ProfileSnapshotId
+from core.types import EntityId, PackageId
 
 
 class ApplicationPackageRepository(Protocol):
 
-    def save(self, package: ApplicationPackage) -> None: ...
+    def save(self, manifest: ApplicationPackageManifest) -> None: ...
 
     def get(
         self,
-        package_id: ApplicationPackageId,
-    ) -> ApplicationPackage | None: ...
+        package_id: PackageId,
+    ) -> ApplicationPackageManifest | None: ...
+
+    def exists(
+        self,
+        package_id: PackageId,
+    ) -> bool: ...
 
     def list_by_entity(
         self,
         entity_id: EntityId,
-    ) -> tuple[ApplicationPackage, ...]: ...
+    ) -> tuple[ApplicationPackageManifest, ...]: ...
 
-    def list_by_snapshot(
+    def get_latest_by_entity(
         self,
-        snapshot_id: ProfileSnapshotId,
-    ) -> tuple[ApplicationPackage, ...]: ...
-
-    def list_by_status(
-        self,
-        status: PackageStatus,
-    ) -> tuple[ApplicationPackage, ...]: ...
-
-    def mark_ready(
-        self,
-        package_id: ApplicationPackageId,
-    ) -> None: ...
-
-    def mark_delivered(
-        self,
-        package_id: ApplicationPackageId,
-    ) -> None: ...
+        entity_id: EntityId,
+    ) -> ApplicationPackageManifest | None: ...

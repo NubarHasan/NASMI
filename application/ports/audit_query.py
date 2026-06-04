@@ -1,48 +1,35 @@
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Protocol
 
-from audit.audit_event import AuditEvent
-from knowledge.provenance_step import ProvenanceStep
-
-from core.types import DocumentId, EntityId, FactId, ReviewerId
+from audit.audit_chain import AuditChain
+from audit.audit_entry import AuditEntry, AuditEventType
+from core.types import EntityId, JobId
 
 
 class AuditQuery(Protocol):
 
-    def list_events_by_entity(
+    def get_chain(
+        self,
+        subject_id: EntityId,
+    ) -> AuditChain: ...
+
+    def list_by_entity(
         self,
         entity_id: EntityId,
-    ) -> tuple[AuditEvent, ...]: ...
+    ) -> tuple[AuditEntry, ...]: ...
 
-    def list_events_by_fact(
+    def list_by_job(
         self,
-        fact_id: FactId,
-    ) -> tuple[AuditEvent, ...]: ...
+        job_id: JobId,
+    ) -> tuple[AuditEntry, ...]: ...
 
-    def list_events_by_reviewer(
+    def list_by_event_type(
         self,
-        reviewer_id: ReviewerId,
-    ) -> tuple[AuditEvent, ...]: ...
+        event_type: AuditEventType,
+    ) -> tuple[AuditEntry, ...]: ...
 
-    def list_events_in_range(
+    def get_latest_by_entity(
         self,
-        start: datetime,
-        end: datetime,
-    ) -> tuple[AuditEvent, ...]: ...
-
-    def list_steps_by_fact(
-        self,
-        fact_id: FactId,
-    ) -> tuple[ProvenanceStep, ...]: ...
-
-    def list_steps_by_document(
-        self,
-        document_id: DocumentId,
-    ) -> tuple[ProvenanceStep, ...]: ...
-
-    def verify_fact_integrity(
-        self,
-        fact_id: FactId,
-    ) -> bool: ...
+        entity_id: EntityId,
+    ) -> AuditEntry | None: ...

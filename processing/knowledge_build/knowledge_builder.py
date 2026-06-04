@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from core.guards import require
-from core.types import CandidateFactId, EntityId, FactId
+from core.types import CandidateFactId, EntityId
 from knowledge.conflict import Conflict
 from knowledge.evidence import Evidence
 from knowledge.fact import Fact

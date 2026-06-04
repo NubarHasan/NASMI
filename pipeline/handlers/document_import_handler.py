@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from archive.document import Document
 from core.guards import require
@@ -85,13 +86,13 @@ class DocumentImportHandler:
         category: FailureCategory,
         severity: FailureSeverity,
         is_retryable: bool,
-        metadata: dict | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         failure = PipelineFailure.create(
             job_id=job.job_id,
             stage=_STAGE,
             category=category,
-            source=FailureSource.HANDLER,
+            source=FailureSource.SYSTEM,
             message=message,
             severity=severity,
             is_retryable=is_retryable,

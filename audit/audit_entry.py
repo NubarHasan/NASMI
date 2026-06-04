@@ -68,7 +68,7 @@ def _assert_json_primitives(value: Any, path: str) -> None:
 
 def _validated_meta(raw: Any) -> dict[str, Any]:
     require(isinstance(raw, dict), "metadata must be a dictionary")
-    meta = copy.deepcopy(raw)
+    meta: dict[str, Any] = copy.deepcopy(raw)
     _assert_json_primitives(meta, "metadata")
     return meta
 
@@ -92,7 +92,7 @@ def _canonical_payload(
         "occurred_at": format_timestamp(occurred_at),
         "actor": actor,
         "message": message,
-        "metadata": dict(metadata),
+        "metadata": {k: v for k, v in metadata.items()},
         "previous_hash": previous_hash,
     }
     return json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
@@ -167,7 +167,7 @@ class AuditEntry:
         return hmac.compare_digest(self.entry_hash, expected)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result: dict[str, Any] = {
             "audit_id": str(self.audit_id),
             "event_type": str(self.event_type),
             "job_id": str(self.job_id) if self.job_id is not None else None,
@@ -175,10 +175,11 @@ class AuditEntry:
             "occurred_at": format_timestamp(self.occurred_at),
             "actor": self.actor,
             "message": self.message,
-            "metadata": dict(self.metadata),
+            "metadata": {k: v for k, v in self.metadata.items()},
             "previous_hash": self.previous_hash,
             "entry_hash": self.entry_hash,
         }
+        return result
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AuditEntry:

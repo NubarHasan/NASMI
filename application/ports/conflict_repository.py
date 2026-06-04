@@ -2,22 +2,27 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from knowledge.conflict_status import ConflictStatus
-
 from core.types import ConflictId, EntityId, FactId
-from knowledge.conflict import Conflict
+from knowledge.conflict import Conflict, ConflictStatus
 
 
 class ConflictRepository(Protocol):
 
     def save(self, conflict: Conflict) -> None: ...
 
-    def get(self, conflict_id: ConflictId) -> Conflict | None: ...
-
-    def exists_between(
+    def get(
         self,
-        fact_id_a: FactId,
-        fact_id_b: FactId,
+        conflict_id: ConflictId,
+    ) -> Conflict | None: ...
+
+    def exists(
+        self,
+        conflict_id: ConflictId,
+    ) -> bool: ...
+
+    def exists_for_facts(
+        self,
+        fact_ids: tuple[FactId, ...],
     ) -> bool: ...
 
     def list_by_entity(
@@ -35,9 +40,3 @@ class ConflictRepository(Protocol):
         entity_id: EntityId,
         status: ConflictStatus,
     ) -> tuple[Conflict, ...]: ...
-
-    def resolve(self, conflict_id: ConflictId) -> None: ...
-
-    def dismiss(self, conflict_id: ConflictId) -> None: ...
-
-    def supersede(self, conflict_id: ConflictId) -> None: ...

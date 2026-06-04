@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from application.ports.audit_query import AuditQueryService
+from application.ports.audit_query import AuditQuery
 from audit.audit_chain import AuditChain
 from audit.audit_verifier import AuditVerifier
 from audit.integrity_result import IntegrityViolation
@@ -23,14 +23,10 @@ class AuditReportJsonGenerator:
 
     def __init__(
         self,
-        audit_query: AuditQueryService,
+        audit_query: AuditQuery,
         audit_verifier: AuditVerifier,
         base_output_dir: Path,
     ) -> None:
-        require(
-            isinstance(audit_query, AuditQueryService),
-            "audit_query must be AuditQueryService",
-        )
         require(
             isinstance(audit_verifier, AuditVerifier),
             "audit_verifier must be AuditVerifier",
@@ -87,10 +83,12 @@ class AuditReportJsonGenerator:
             {
                 "audit_id": str(entry.audit_id),
                 "event_type": entry.event_type.value,
-                "actor_id": str(entry.actor_id),
-                "subject_id": str(entry.subject_id),
+                "actor": entry.actor,
+                "subject_id": (
+                    str(entry.subject_id) if entry.subject_id is not None else None
+                ),
                 "occurred_at": entry.occurred_at.isoformat(),
-                "payload": entry.payload,
+                "metadata": {k: v for k, v in entry.metadata.items()},
                 "previous_hash": entry.previous_hash,
             }
             for entry in chain.entries

@@ -2,55 +2,46 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from review.review_case_status import ReviewCaseStatus
-from review.review_case_type import ReviewCaseType
-
-from core.types import EntityId, FactId, ReviewCaseId, ReviewerId
+from core.types import EntityId, ReviewCaseId, UserId
 from review.review_case import ReviewCase
-from review.review_decision import ReviewDecision
+from review.review_type import ReviewPriority, ReviewStatus
 
 
 class ReviewRepository(Protocol):
 
-    def save_case(self, case: ReviewCase) -> None: ...
+    def save(self, case: ReviewCase) -> None: ...
 
-    def get_case(
+    def get(
         self,
         case_id: ReviewCaseId,
     ) -> ReviewCase | None: ...
 
-    def get_decision_by_case(
+    def exists(
         self,
         case_id: ReviewCaseId,
-    ) -> ReviewDecision | None: ...
+    ) -> bool: ...
 
-    def get_open_case_by_fact(
+    def get_open_by_candidate_fact(
         self,
-        fact_id: FactId,
+        candidate_fact_id: str,
     ) -> ReviewCase | None: ...
 
-    def list_cases_by_entity(
+    def list_by_entity(
         self,
         entity_id: EntityId,
     ) -> tuple[ReviewCase, ...]: ...
 
-    def list_cases_by_status(
+    def list_by_status(
         self,
-        status: ReviewCaseStatus,
+        status: ReviewStatus,
     ) -> tuple[ReviewCase, ...]: ...
 
-    def list_cases_by_type(
+    def list_by_assignee(
         self,
-        case_type: ReviewCaseType,
+        user_id: UserId,
     ) -> tuple[ReviewCase, ...]: ...
 
-    def list_cases_by_reviewer(
+    def list_by_priority(
         self,
-        reviewer_id: ReviewerId,
+        priority: ReviewPriority,
     ) -> tuple[ReviewCase, ...]: ...
-
-    def close(
-        self,
-        case_id: ReviewCaseId,
-        decision: ReviewDecision,
-    ) -> None: ...

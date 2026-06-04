@@ -12,7 +12,10 @@ class EntityRepository(Protocol):
 
     def save(self, entity: Entity) -> None: ...
 
-    def get(self, entity_id: EntityId) -> Entity | None: ...
+    def get(
+        self,
+        entity_id: EntityId,
+    ) -> Entity | None: ...
 
     def get_by_external_ref(
         self,
@@ -20,7 +23,10 @@ class EntityRepository(Protocol):
         external_ref: ExternalRef,
     ) -> Entity | None: ...
 
-    def exists(self, entity_id: EntityId) -> bool: ...
+    def exists(
+        self,
+        entity_id: EntityId,
+    ) -> bool: ...
 
     def exists_by_external_ref(
         self,

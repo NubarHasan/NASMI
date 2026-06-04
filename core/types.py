@@ -46,6 +46,7 @@ SpanId = NewType("SpanId", str)
 ExtractorId = NewType("ExtractorId", str)
 EntityResolutionResultId = NewType("EntityResolutionResultId", str)
 KnowledgeBuildResultId = NewType("KnowledgeBuildResultId", str)
+ExternalRef = NewType("ExternalRef", str)
 
 HashValue: TypeAlias = str
 HMACValue: TypeAlias = str

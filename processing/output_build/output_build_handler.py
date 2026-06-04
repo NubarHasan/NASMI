@@ -7,7 +7,7 @@ from core.types import EntityId
 from output.output_format import OutputFormat
 from output.output_type import OutputType
 from pipeline.artifact import ArtifactType, OutputArtifact, ProfileArtifact
-from pipeline.job import Job, JobStatus
+from pipeline.job import Job
 from processing.output_build.output_build_service import OutputBuildService
 
 _log = logging.getLogger(__name__)

@@ -2,26 +2,39 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from output.profile_snapshot import ProfileSnapshot
+from core.types import EntityId
+from output.output_document import OutputDocument
+from output.output_ids import OutputDocumentId
+from output.output_type import OutputType
 
-from core.types import EntityId, ProfileSnapshotId
 
+class OutputDocumentRepository(Protocol):
 
-class ProfileSnapshotRepository(Protocol):
-
-    def save(self, snapshot: ProfileSnapshot) -> None: ...
+    def save(self, document: OutputDocument) -> None: ...
 
     def get(
         self,
-        snapshot_id: ProfileSnapshotId,
-    ) -> ProfileSnapshot | None: ...
+        output_document_id: OutputDocumentId,
+    ) -> OutputDocument | None: ...
 
-    def get_latest_by_entity(
+    def exists(
         self,
-        entity_id: EntityId,
-    ) -> ProfileSnapshot | None: ...
+        output_document_id: OutputDocumentId,
+    ) -> bool: ...
 
     def list_by_entity(
         self,
         entity_id: EntityId,
-    ) -> tuple[ProfileSnapshot, ...]: ...
+    ) -> tuple[OutputDocument, ...]: ...
+
+    def list_by_entity_and_type(
+        self,
+        entity_id: EntityId,
+        output_type: OutputType,
+    ) -> tuple[OutputDocument, ...]: ...
+
+    def get_latest_by_entity_and_type(
+        self,
+        entity_id: EntityId,
+        output_type: OutputType,
+    ) -> OutputDocument | None: ...

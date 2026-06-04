@@ -5,12 +5,12 @@ from typing import Protocol
 from application.ports.application_package_repository import (
     ApplicationPackageRepository,
 )
-from application.ports.profile_snapshot_repository import ProfileSnapshotRepository
+from application.ports.profile_snapshot_repository import OutputDocumentRepository
 
 
 class OutputUnitOfWork(Protocol):
 
-    snapshots: ProfileSnapshotRepository
+    snapshots: OutputDocumentRepository
     packages: ApplicationPackageRepository
 
     def __enter__(self) -> OutputUnitOfWork: ...

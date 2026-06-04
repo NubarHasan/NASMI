@@ -191,7 +191,7 @@ class EntityResolutionHandler:
             self._record_failure(
                 job,
                 message=f"EntityResolutionService raised: {exc}",
-                category=FailureCategory.ENTITY_RESOLUTION,
+                category=FailureCategory.KNOWLEDGE,
                 severity=FailureSeverity.CRITICAL,
                 is_retryable=False,
                 requires_review=True,

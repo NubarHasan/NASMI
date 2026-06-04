@@ -213,7 +213,7 @@ class KnowledgeBuildHandler:
             self._record_failure(
                 job,
                 message=f"KnowledgeBuildService raised: {exc}",
-                category=FailureCategory.KNOWLEDGE_BUILD,
+                category=FailureCategory.KNOWLEDGE,
                 severity=FailureSeverity.CRITICAL,
                 is_retryable=False,
                 requires_review=True,
