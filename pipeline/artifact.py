@@ -16,6 +16,9 @@ class ArtifactType(StrEnum):
     DOCUMENT = "document"
     EVIDENCE = "evidence"
     EXTRACTION = "extraction"
+    ENTITY_RESOLUTION = "entity_resolution"
+    KNOWLEDGE_BUILD = "knowledge_build"
+    FACT_ACCEPTANCE = "fact_acceptance"
     FACT = "fact"
     OCR = "ocr"
     PROFILE = "profile"
@@ -221,6 +224,225 @@ class ExtractionArtifact(BaseArtifact):
             extractor_id=extractor_id,
             candidate_fact_count=candidate_fact_count,
             mean_confidence=mean_confidence,
+            snapshot=copy.deepcopy(snapshot),
+        )
+
+
+@dataclass(frozen=True)
+class EntityResolutionArtifact(BaseArtifact):
+    entity_id: str
+    fact_count: int
+    resolution_confidence: float
+    has_conflicts: bool
+    snapshot: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        base = super().to_dict()
+        base["entity_id"] = self.entity_id
+        base["fact_count"] = self.fact_count
+        base["resolution_confidence"] = self.resolution_confidence
+        base["has_conflicts"] = self.has_conflicts
+        base["snapshot"] = copy.deepcopy(self.snapshot)
+        return base
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> EntityResolutionArtifact:
+        return cls(
+            **BaseArtifact._base_fields(data),
+            entity_id=data["entity_id"],
+            fact_count=data["fact_count"],
+            resolution_confidence=data["resolution_confidence"],
+            has_conflicts=data["has_conflicts"],
+            snapshot=copy.deepcopy(data["snapshot"]),
+        )
+
+    @classmethod
+    def create(
+        cls,
+        job_id: str,
+        stage: str,
+        entity_id: str,
+        fact_count: int,
+        resolution_confidence: float,
+        has_conflicts: bool,
+        snapshot: dict[str, Any],
+        source_artifact_ids: tuple[str, ...] = (),
+    ) -> EntityResolutionArtifact:
+        require(bool(job_id), "job_id must be non-empty")
+        require(bool(stage), "stage must be non-empty")
+        require(bool(entity_id), "entity_id must be non-empty")
+        require(
+            isinstance(fact_count, int) and fact_count > 0,
+            "fact_count must be a positive int",
+        )
+        require(
+            0.0 <= resolution_confidence <= 1.0,
+            "resolution_confidence must be in [0.0, 1.0]",
+        )
+        require(isinstance(has_conflicts, bool), "has_conflicts must be a bool")
+        _validate_source_ids(source_artifact_ids)
+        return cls(
+            artifact_id=generate_artifact_id(),
+            artifact_type=ArtifactType.ENTITY_RESOLUTION,
+            job_id=job_id,
+            stage=stage,
+            created_at=utcnow(),
+            source_artifact_ids=source_artifact_ids,
+            entity_id=entity_id,
+            fact_count=fact_count,
+            resolution_confidence=resolution_confidence,
+            has_conflicts=has_conflicts,
+            snapshot=copy.deepcopy(snapshot),
+        )
+
+
+@dataclass(frozen=True)
+class KnowledgeBuildArtifact(BaseArtifact):
+    entity_id: str
+    fact_count: int
+    evidence_count: int
+    conflict_count: int
+    snapshot: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        base = super().to_dict()
+        base["entity_id"] = self.entity_id
+        base["fact_count"] = self.fact_count
+        base["evidence_count"] = self.evidence_count
+        base["conflict_count"] = self.conflict_count
+        base["snapshot"] = copy.deepcopy(self.snapshot)
+        return base
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> KnowledgeBuildArtifact:
+        return cls(
+            **BaseArtifact._base_fields(data),
+            entity_id=data["entity_id"],
+            fact_count=data["fact_count"],
+            evidence_count=data["evidence_count"],
+            conflict_count=data["conflict_count"],
+            snapshot=copy.deepcopy(data["snapshot"]),
+        )
+
+    @classmethod
+    def create(
+        cls,
+        job_id: str,
+        stage: str,
+        entity_id: str,
+        fact_count: int,
+        evidence_count: int,
+        conflict_count: int,
+        snapshot: dict[str, Any],
+        source_artifact_ids: tuple[str, ...] = (),
+    ) -> KnowledgeBuildArtifact:
+        require(bool(job_id), "job_id must be non-empty")
+        require(bool(stage), "stage must be non-empty")
+        require(bool(entity_id), "entity_id must be non-empty")
+        require(
+            isinstance(fact_count, int) and fact_count >= 0,
+            "fact_count must be a non-negative int",
+        )
+        require(
+            isinstance(evidence_count, int) and evidence_count >= 0,
+            "evidence_count must be a non-negative int",
+        )
+        require(
+            isinstance(conflict_count, int) and conflict_count >= 0,
+            "conflict_count must be a non-negative int",
+        )
+        _validate_source_ids(source_artifact_ids)
+        return cls(
+            artifact_id=generate_artifact_id(),
+            artifact_type=ArtifactType.KNOWLEDGE_BUILD,
+            job_id=job_id,
+            stage=stage,
+            created_at=utcnow(),
+            source_artifact_ids=source_artifact_ids,
+            entity_id=entity_id,
+            fact_count=fact_count,
+            evidence_count=evidence_count,
+            conflict_count=conflict_count,
+            snapshot=copy.deepcopy(snapshot),
+        )
+
+
+@dataclass(frozen=True)
+class FactAcceptanceArtifact(BaseArtifact):
+    entity_id: str
+    accepted_count: int
+    review_required_count: int
+    conflict_count: int
+    rejected_count: int
+    snapshot: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        base = super().to_dict()
+        base["entity_id"] = self.entity_id
+        base["accepted_count"] = self.accepted_count
+        base["review_required_count"] = self.review_required_count
+        base["conflict_count"] = self.conflict_count
+        base["rejected_count"] = self.rejected_count
+        base["snapshot"] = copy.deepcopy(self.snapshot)
+        return base
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> FactAcceptanceArtifact:
+        return cls(
+            **BaseArtifact._base_fields(data),
+            entity_id=data["entity_id"],
+            accepted_count=data["accepted_count"],
+            review_required_count=data["review_required_count"],
+            conflict_count=data["conflict_count"],
+            rejected_count=data["rejected_count"],
+            snapshot=copy.deepcopy(data["snapshot"]),
+        )
+
+    @classmethod
+    def create(
+        cls,
+        job_id: str,
+        stage: str,
+        entity_id: str,
+        accepted_count: int,
+        review_required_count: int,
+        conflict_count: int,
+        rejected_count: int,
+        snapshot: dict[str, Any],
+        source_artifact_ids: tuple[str, ...] = (),
+    ) -> FactAcceptanceArtifact:
+        require(bool(job_id), "job_id must be non-empty")
+        require(bool(stage), "stage must be non-empty")
+        require(bool(entity_id), "entity_id must be non-empty")
+        require(
+            isinstance(accepted_count, int) and accepted_count >= 0,
+            "accepted_count must be a non-negative int",
+        )
+        require(
+            isinstance(review_required_count, int) and review_required_count >= 0,
+            "review_required_count must be a non-negative int",
+        )
+        require(
+            isinstance(conflict_count, int) and conflict_count >= 0,
+            "conflict_count must be a non-negative int",
+        )
+        require(
+            isinstance(rejected_count, int) and rejected_count >= 0,
+            "rejected_count must be a non-negative int",
+        )
+        _validate_source_ids(source_artifact_ids)
+        return cls(
+            artifact_id=generate_artifact_id(),
+            artifact_type=ArtifactType.FACT_ACCEPTANCE,
+            job_id=job_id,
+            stage=stage,
+            created_at=utcnow(),
+            source_artifact_ids=source_artifact_ids,
+            entity_id=entity_id,
+            accepted_count=accepted_count,
+            review_required_count=review_required_count,
+            conflict_count=conflict_count,
+            rejected_count=rejected_count,
             snapshot=copy.deepcopy(snapshot),
         )
 
@@ -435,6 +657,9 @@ Artifact = (
     DocumentArtifact
     | EvidenceArtifact
     | ExtractionArtifact
+    | EntityResolutionArtifact
+    | KnowledgeBuildArtifact
+    | FactAcceptanceArtifact
     | FactArtifact
     | OcrArtifact
     | ProfileArtifact
@@ -451,6 +676,9 @@ _ARTIFACT_REGISTRY: dict[str, _ArtifactDecoder] = {
     ArtifactType.DOCUMENT: DocumentArtifact,
     ArtifactType.EVIDENCE: EvidenceArtifact,
     ArtifactType.EXTRACTION: ExtractionArtifact,
+    ArtifactType.ENTITY_RESOLUTION: EntityResolutionArtifact,
+    ArtifactType.KNOWLEDGE_BUILD: KnowledgeBuildArtifact,
+    ArtifactType.FACT_ACCEPTANCE: FactAcceptanceArtifact,
     ArtifactType.FACT: FactArtifact,
     ArtifactType.OCR: OcrArtifact,
     ArtifactType.PROFILE: ProfileArtifact,
