@@ -20,6 +20,7 @@ from core.types import (
     FailureId,
     FormFieldId,
     FormId,
+    FormMappingId,
     FormSubmissionId,
     FormTemplateId,
     JobId,
@@ -77,6 +78,7 @@ _PREFIX_VAULT: str = "VLT"
 _PREFIX_FORM_FIELD: str = "FFD"
 _PREFIX_FORM_TEMPLATE: str = "FTP"
 _PREFIX_FORM_SUBMISSION: str = "FSB"
+_PREFIX_FORM_MAPPING: str = "FMP"
 _PREFIX_CANDIDATE_FACT: str = "CFT"
 _PREFIX_EXTRACTION_RESULT: str = "EXR"
 _PREFIX_EXTRACTION_REQUEST: str = "EXQ"
@@ -122,6 +124,7 @@ _KNOWN_PREFIXES: frozenset[str] = frozenset(
         _PREFIX_FORM_FIELD,
         _PREFIX_FORM_TEMPLATE,
         _PREFIX_FORM_SUBMISSION,
+        _PREFIX_FORM_MAPPING,
         _PREFIX_CANDIDATE_FACT,
         _PREFIX_EXTRACTION_RESULT,
         _PREFIX_EXTRACTION_REQUEST,
@@ -270,6 +273,10 @@ def generate_form_submission_id() -> FormSubmissionId:
     return FormSubmissionId(generate_id(_PREFIX_FORM_SUBMISSION))
 
 
+def generate_form_mapping_id() -> FormMappingId:
+    return FormMappingId(generate_id(_PREFIX_FORM_MAPPING))
+
+
 def generate_ocr_block_id() -> OcrBlockId:
     return OcrBlockId(generate_id(_PREFIX_OCR_BLOCK))
 
@@ -312,6 +319,10 @@ def generate_ocr_word_id() -> OcrWordId:
 
 def generate_validation_report_id() -> ValidationReportId:
     return ValidationReportId(generate_id(_PREFIX_VALIDATION_REPORT))
+
+
+def generate_knowledge_build_result_id() -> KnowledgeBuildResultId:
+    return KnowledgeBuildResultId(generate_id(_PREFIX_KNOWLEDGE_BUILD_RESULT))
 
 
 def is_valid_id(value: str, prefix: str) -> bool:
@@ -446,6 +457,10 @@ def is_valid_form_submission_id(value: str) -> bool:
     return is_valid_id(value, _PREFIX_FORM_SUBMISSION)
 
 
+def is_valid_form_mapping_id(value: str) -> bool:
+    return is_valid_id(value, _PREFIX_FORM_MAPPING)
+
+
 def is_valid_ocr_block_id(value: str) -> bool:
     return is_valid_id(value, _PREFIX_OCR_BLOCK)
 
@@ -484,10 +499,6 @@ def is_valid_ocr_word_id(value: str) -> bool:
 
 def is_valid_validation_report_id(value: str) -> bool:
     return is_valid_id(value, _PREFIX_VALIDATION_REPORT)
-
-
-def generate_knowledge_build_result_id() -> KnowledgeBuildResultId:
-    return KnowledgeBuildResultId(generate_id(_PREFIX_KNOWLEDGE_BUILD_RESULT))
 
 
 def is_valid_knowledge_build_result_id(value: str) -> bool:
