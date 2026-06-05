@@ -64,9 +64,7 @@ logs/
 secrets.toml
 config.local.toml
 
-# Data / ML models (large binary files only)
-data/
-/weights/
+# ML Models — all formats
 *.pt
 *.pth
 *.onnx
@@ -75,8 +73,18 @@ data/
 *.pickle
 *.h5
 *.hdf5
+*.gguf
+*.ggml
+*.safetensors
+*.tflite
+*.pb
+*.mlmodel
+*.torchscript
+/weights/
+/models/
+data/
 
-# Runtime uploads / exports (NOT source code folders)
+# Runtime uploads / exports
 /uploads/
 /exports/
 /temp/
