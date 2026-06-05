@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import logging
 
-from processing.candidate_fact import CandidateFact
-
 from core.guards import require
 from core.types import EntityId
+from processing.candidate_fact import CandidateFact
 from processing.entity_resolution.entity_resolution_result import EntityResolutionResult
 from processing.entity_resolution.entity_resolver import EntityResolver
 

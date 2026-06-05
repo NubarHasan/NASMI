@@ -50,9 +50,11 @@ def _serialize_value(value: CanonicalValue, vtype: ValueType) -> str | None:
     if value is None:
         return None
     if vtype is ValueType.DATETIME:
-        return value.isoformat()  # type: ignore[union-attr]
+        assert isinstance(value, datetime)
+        return value.isoformat()
     if vtype is ValueType.DATE:
-        return value.isoformat()  # type: ignore[union-attr]
+        assert isinstance(value, date)
+        return value.isoformat()
     return str(value)
 
 
@@ -213,6 +215,12 @@ class Fact:
             accepted_by=self.accepted_by,
             superseded_by=new_fact_id,
             metadata=dict(self.metadata),
+        )
+
+    def values_equivalent(self, other: Fact) -> bool:
+        return (
+            self.canonical_value == other.canonical_value
+            and self.value_type == other.value_type
         )
 
     def to_dict(self) -> dict[str, Any]:

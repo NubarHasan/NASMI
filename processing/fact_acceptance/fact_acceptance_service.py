@@ -3,15 +3,15 @@ from __future__ import annotations
 import logging
 from typing import Final
 
+from application.ports.review_case_writer import ReviewCaseWriter
+from application.services.knowledge_service import KnowledgeApplicationService
 from core.guards import require
 from core.identifiers import is_valid_entity_id
 from core.types import CandidateFactId, EntityId
 from knowledge.conflict import Conflict
 from knowledge.fact import Fact, FactStatus
-from knowledge.knowledge_service import KnowledgeService
 from processing.fact_acceptance.fact_acceptance_result import FactAcceptanceResult
 from review.review_case import ReviewCase
-from review.review_service import ReviewService
 from review.review_type import ReviewPriority
 
 _log = logging.getLogger(__name__)
@@ -32,19 +32,19 @@ class FactAcceptanceService:
 
     def __init__(
         self,
-        knowledge_service: KnowledgeService,
-        review_service: ReviewService,
+        knowledge_service: KnowledgeApplicationService,
+        review_writer: ReviewCaseWriter,
     ) -> None:
         require(
-            isinstance(knowledge_service, KnowledgeService),
-            "knowledge_service must be a KnowledgeService",
+            isinstance(knowledge_service, KnowledgeApplicationService),
+            "knowledge_service must be a KnowledgeApplicationService",
         )
         require(
-            isinstance(review_service, ReviewService),
-            "review_service must be a ReviewService",
+            isinstance(review_writer, ReviewCaseWriter),
+            "review_writer must implement ReviewCaseWriter",
         )
         self._knowledge = knowledge_service
-        self._review = review_service
+        self._review = review_writer
 
     def process(self, entity_id: EntityId) -> FactAcceptanceResult:
         require(is_valid_entity_id(entity_id), "invalid entity_id")
@@ -56,7 +56,8 @@ class FactAcceptanceService:
         )
 
         require(
-            len(pending_facts) > 0, f"no PENDING facts found for entity [{entity_id}]"
+            len(pending_facts) > 0,
+            f"no PENDING facts found for entity [{entity_id}]",
         )
 
         accepted: list[Fact] = []
@@ -78,8 +79,8 @@ class FactAcceptanceService:
                 elif isinstance(outcome, Conflict):
                     conflicts.append(outcome)
             else:
-                evidence_links = self._knowledge.list_fact_evidence(fact.fact_id)
-                if not evidence_links:
+                evidence_ids = self._knowledge.list_evidence_ids(fact.fact_id)
+                if not evidence_ids:
                     _log.warning(
                         "skipping review — no evidence for fact=%s field=%s",
                         fact.fact_id,
@@ -87,8 +88,6 @@ class FactAcceptanceService:
                     )
                     rejected.append(fact)
                     continue
-
-                evidence_ids = tuple(fe.evidence_id for fe in evidence_links)
 
                 case = self._review.open_case(
                     entity_id=fact.entity_id,

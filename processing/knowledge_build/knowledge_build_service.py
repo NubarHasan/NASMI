@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import logging
 
+from application.services.knowledge_service import KnowledgeApplicationService
 from core.guards import require
 from core.types import EntityId
-from knowledge.knowledge_service import KnowledgeService
 from processing.entity_resolution.entity_resolution_result import EntityResolutionResult
 from processing.extraction.candidate_fact import CandidateFact
 from processing.knowledge_build.knowledge_build_result import KnowledgeBuildResult
@@ -15,11 +15,7 @@ _logger = logging.getLogger(__name__)
 
 class KnowledgeBuildService:
 
-    def __init__(self, knowledge_service: KnowledgeService) -> None:
-        require(
-            isinstance(knowledge_service, KnowledgeService),
-            "knowledge_service must be a KnowledgeService",
-        )
+    def __init__(self, knowledge_service: KnowledgeApplicationService) -> None:
         self._knowledge_service = knowledge_service
         self._builder = KnowledgeBuilder()
 
@@ -50,11 +46,16 @@ class KnowledgeBuildService:
             candidate_facts=candidate_facts,
         )
 
-        self._persist(result)
+        self._knowledge_service.persist_knowledge_build(
+            evidence_list=result.evidence,
+            facts=result.facts,
+            links=result.fact_evidence_links,
+            provenances=result.provenance_records,
+            conflicts=result.conflicts,
+        )
 
         _logger.debug(
-            "KnowledgeBuildService.process completed | entity_id=%s "
-            "facts=%d evidence=%d conflicts=%d",
+            "KnowledgeBuildService.process completed | entity_id=%s facts=%d evidence=%d conflicts=%d",
             entity_id,
             len(result.facts),
             len(result.evidence),
@@ -62,19 +63,3 @@ class KnowledgeBuildService:
         )
 
         return result
-
-    def _persist(self, result: KnowledgeBuildResult) -> None:
-        for evidence in result.evidence:
-            self._knowledge_service.register_evidence(evidence)
-
-        for fact in result.facts:
-            self._knowledge_service.submit_fact(fact)
-
-        for fe in result.fact_evidence_links:
-            self._knowledge_service.link_fact_evidence(fe)
-
-        for provenance in result.provenance_records:
-            self._knowledge_service.record_provenance(provenance)
-
-        for conflict in result.conflicts:
-            self._knowledge_service.register_conflict(conflict)

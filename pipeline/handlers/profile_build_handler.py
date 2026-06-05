@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import cast
 
+from application.services.knowledge_service import KnowledgeApplicationService
 from core.guards import require
 from core.types import EntityId
 from pipeline.artifact import (
@@ -27,12 +28,21 @@ _STAGE = "profile_build"
 
 class ProfileBuildHandler:
 
-    def __init__(self, profile_build_service: ProfileBuildService) -> None:
+    def __init__(
+        self,
+        profile_build_service: ProfileBuildService,
+        knowledge_app_service: KnowledgeApplicationService,
+    ) -> None:
         require(
             isinstance(profile_build_service, ProfileBuildService),
             "profile_build_service must be a ProfileBuildService",
         )
+        require(
+            isinstance(knowledge_app_service, KnowledgeApplicationService),
+            "knowledge_app_service must be a KnowledgeApplicationService",
+        )
         self._service = profile_build_service
+        self._ks = knowledge_app_service
 
     def handle(self, job: Job) -> None:
         require(isinstance(job, Job), "job must be a Job")
@@ -54,11 +64,12 @@ class ProfileBuildHandler:
         fa = fa_artifacts[-1]
         entity_id = cast(EntityId, fa.entity_id)
 
-        entity = job.knowledge_service.get_entity(entity_id)
+        entity = self._ks.get_entity(entity_id)
         if entity is None:
             job.context.failures.add(
                 _failure(
-                    job.job_id, f"entity {entity_id!r} not found in KnowledgeService"
+                    job.job_id,
+                    f"entity {entity_id!r} not found in knowledge store",
                 )
             )
             return

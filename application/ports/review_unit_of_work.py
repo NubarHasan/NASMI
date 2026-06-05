@@ -4,12 +4,14 @@ from typing import Protocol
 
 from application.ports.conflict_repository import ConflictRepository
 from application.ports.fact_repository import FactRepository
+from application.ports.review_decision_repository import ReviewDecisionRepository
 from application.ports.review_repository import ReviewRepository
 
 
 class ReviewUnitOfWork(Protocol):
 
     reviews: ReviewRepository
+    decisions: ReviewDecisionRepository
     facts: FactRepository
     conflicts: ConflictRepository
 

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Protocol, runtime_checkable
 
 from core.guards import require
 from core.types import Metadata
@@ -12,38 +11,11 @@ from pipeline.failure import (
     FailureSource,
     PipelineFailure,
 )
-from pipeline.job import Job, JobType
+from pipeline.handler_registry import HandlerRegistry
+from pipeline.job import Job
+from pipeline.job_handler import JobHandler
 
 _log = logging.getLogger(__name__)
-
-
-@runtime_checkable
-class JobHandler(Protocol):
-    def handle(self, job: Job) -> None: ...
-
-
-class HandlerRegistry:
-    def __init__(self) -> None:
-        self._handlers: dict[JobType, JobHandler] = {}
-
-    def register(self, job_type: JobType, handler: JobHandler) -> None:
-        require(isinstance(job_type, JobType), "job_type must be a JobType")
-        require(isinstance(handler, JobHandler), "handler must implement JobHandler")
-        require(
-            job_type not in self._handlers,
-            f"handler already registered for {job_type!r}",
-        )
-        self._handlers[job_type] = handler
-        _log.debug("registered handler for %r: %s", job_type, type(handler).__name__)
-
-    def resolve(self, job_type: JobType) -> JobHandler:
-        handler = self._handlers.get(job_type)
-        require(handler is not None, f"no handler registered for {job_type!r}")
-        assert handler is not None
-        return handler
-
-    def registered_types(self) -> frozenset[JobType]:
-        return frozenset(self._handlers)
 
 
 class BaseWorker(ABC):
@@ -52,9 +24,11 @@ class BaseWorker(ABC):
 
 
 class DefaultWorker(BaseWorker):
+
     def __init__(self, registry: HandlerRegistry) -> None:
         require(
-            isinstance(registry, HandlerRegistry), "registry must be a HandlerRegistry"
+            isinstance(registry, HandlerRegistry),
+            "registry must be a HandlerRegistry",
         )
         self._registry = registry
 

@@ -4,6 +4,7 @@ from typing import Protocol
 
 from application.ports.conflict_repository import ConflictRepository
 from application.ports.document_repository import DocumentRepository
+from application.ports.entity_repository import EntityRepository
 from application.ports.evidence_repository import EvidenceRepository
 from application.ports.fact_evidence_repository import FactEvidenceRepository
 from application.ports.fact_repository import FactRepository
@@ -18,6 +19,7 @@ class KnowledgeUnitOfWork(Protocol):
     provenance: ProvenanceRepository
     conflicts: ConflictRepository
     documents: DocumentRepository
+    entities: EntityRepository
 
     def __enter__(self) -> KnowledgeUnitOfWork: ...
 

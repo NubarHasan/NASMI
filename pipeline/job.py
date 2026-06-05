@@ -32,6 +32,7 @@ class JobType(StrEnum):
     FORM_FILL = "form_fill"
     EXPORT = "export"
     OUTPUT_BUILD = "output_build"
+    DOCUMENT_PIPELINE = "document_pipeline"
 
 
 class JobStatus(StrEnum):
@@ -46,7 +47,12 @@ class JobStatus(StrEnum):
 _ALLOWED_TRANSITIONS: dict[JobStatus, frozenset[JobStatus]] = {
     JobStatus.PENDING: frozenset({JobStatus.RUNNING, JobStatus.CANCELLED}),
     JobStatus.RUNNING: frozenset(
-        {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.RETRYING}
+        {
+            JobStatus.COMPLETED,
+            JobStatus.FAILED,
+            JobStatus.CANCELLED,
+            JobStatus.RETRYING,
+        }
     ),
     JobStatus.FAILED: frozenset({JobStatus.RETRYING, JobStatus.CANCELLED}),
     JobStatus.RETRYING: frozenset({JobStatus.RUNNING, JobStatus.CANCELLED}),
@@ -71,20 +77,7 @@ class Job:
     _cancelled_at: datetime | None = field(default=None, repr=False, init=False)
     _retry_count: int = field(default=0, repr=False, init=False)
     _max_retries: int = field(default=3, repr=False, init=False)
-    _knowledge_service: Any = field(default=None, repr=False, init=False)
     _profile: Any = field(default=None, repr=False, init=False)
-
-    @property
-    def knowledge_service(self) -> Any:
-        require(
-            self._knowledge_service is not None,
-            "knowledge_service has not been attached to this Job",
-        )
-        return self._knowledge_service
-
-    def attach_knowledge_service(self, service: Any) -> None:
-        require(service is not None, "service must not be None")
-        self._knowledge_service = service
 
     @property
     def profile(self) -> Any:

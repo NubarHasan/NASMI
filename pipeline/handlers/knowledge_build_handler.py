@@ -6,6 +6,7 @@ from core.guards import require
 from pipeline.artifact import (
     ArtifactType,
     EntityResolutionArtifact,
+    ExtractionArtifact,
     KnowledgeBuildArtifact,
 )
 from pipeline.failure import (
@@ -43,26 +44,40 @@ class KnowledgeBuildHandler:
             return
 
         entity_resolution_result = self._deserialise_resolution_result(
-            job, resolution_artifact
+            job,
+            resolution_artifact,
         )
         if entity_resolution_result is None:
             return
 
-        candidate_facts = self._deserialise_candidate_facts(job, resolution_artifact)
+        candidate_facts = self._deserialise_candidate_facts(
+            job,
+            resolution_artifact,
+        )
         if candidate_facts is None:
             return
 
-        result = self._run_build(job, entity_resolution_result, candidate_facts)
+        result = self._run_build(
+            job,
+            entity_resolution_result,
+            candidate_facts,
+        )
         if result is None:
             return
 
-        self._emit_artifact(job, resolution_artifact, result)
+        self._emit_artifact(
+            job,
+            resolution_artifact,
+            result,
+        )
 
     def _resolve_resolution_artifact(
         self,
         job: Job,
     ) -> EntityResolutionArtifact | None:
-        candidates = job.context.artifacts.by_type(ArtifactType.ENTITY_RESOLUTION)
+        candidates = job.context.artifacts.by_type(
+            ArtifactType.ENTITY_RESOLUTION,
+        )
 
         if not candidates:
             self._record_failure(
@@ -82,7 +97,8 @@ class KnowledgeBuildHandler:
                 job,
                 message=(
                     f"artifact {artifact.artifact_id!r} has unexpected type "
-                    f"{type(artifact).__name__!r} — expected EntityResolutionArtifact"
+                    f"{type(artifact).__name__!r} — expected "
+                    "EntityResolutionArtifact"
                 ),
                 category=FailureCategory.VALIDATION,
                 severity=FailureSeverity.ERROR,
@@ -106,7 +122,7 @@ class KnowledgeBuildHandler:
                 job,
                 message=(
                     f"EntityResolutionArtifact {artifact.artifact_id!r} "
-                    f"snapshot is not a dict"
+                    "snapshot is not a dict"
                 ),
                 category=FailureCategory.VALIDATION,
                 severity=FailureSeverity.ERROR,
@@ -120,7 +136,8 @@ class KnowledgeBuildHandler:
             return EntityResolutionResult.from_dict(snapshot)
         except Exception as exc:
             _log.exception(
-                "job %r: failed to deserialise EntityResolutionResult from artifact %r",
+                "job %r: failed to deserialise EntityResolutionResult "
+                "from artifact %r",
                 job.job_id,
                 artifact.artifact_id,
             )
@@ -140,14 +157,20 @@ class KnowledgeBuildHandler:
         job: Job,
         artifact: EntityResolutionArtifact,
     ) -> tuple[CandidateFact, ...] | None:
-        raw_facts = artifact.snapshot.get("candidate_facts")
+        extraction_artifacts: list[ExtractionArtifact] = []
 
-        if not isinstance(raw_facts, list):
+        for artifact_id in artifact.source_artifact_ids:
+            source = job.context.artifacts.get(artifact_id)
+
+            if isinstance(source, ExtractionArtifact):
+                extraction_artifacts.append(source)
+
+        if not extraction_artifacts:
             self._record_failure(
                 job,
                 message=(
                     f"EntityResolutionArtifact {artifact.artifact_id!r} "
-                    f"snapshot missing or invalid 'candidate_facts'"
+                    "source_artifact_ids contain no ExtractionArtifacts"
                 ),
                 category=FailureCategory.VALIDATION,
                 severity=FailureSeverity.ERROR,
@@ -158,38 +181,55 @@ class KnowledgeBuildHandler:
             return None
 
         facts: list[CandidateFact] = []
-        for item in raw_facts:
-            try:
-                facts.append(CandidateFact.from_dict(item))
-            except Exception as exc:
-                _log.exception(
-                    "job %r: failed to deserialise CandidateFact from artifact %r",
-                    job.job_id,
-                    artifact.artifact_id,
-                )
+
+        for extraction_artifact in extraction_artifacts:
+            raw_facts = extraction_artifact.snapshot.get("candidate_facts")
+
+            if not isinstance(raw_facts, list):
                 self._record_failure(
                     job,
-                    message=f"CandidateFact deserialisation failed: {exc}",
+                    message=(
+                        f"ExtractionArtifact "
+                        f"{extraction_artifact.artifact_id!r} "
+                        "snapshot missing or invalid 'candidate_facts'"
+                    ),
                     category=FailureCategory.VALIDATION,
                     severity=FailureSeverity.ERROR,
                     is_retryable=False,
                     requires_review=True,
-                    artifact_ids=(artifact.artifact_id,),
+                    artifact_ids=(extraction_artifact.artifact_id,),
                 )
                 return None
+
+            for item in raw_facts:
+                try:
+                    facts.append(CandidateFact.from_dict(item))
+                except Exception as exc:
+                    _log.exception(
+                        "job %r: failed to deserialise CandidateFact "
+                        "from ExtractionArtifact %r",
+                        job.job_id,
+                        extraction_artifact.artifact_id,
+                    )
+                    self._record_failure(
+                        job,
+                        message=f"CandidateFact deserialisation failed: {exc}",
+                        category=FailureCategory.VALIDATION,
+                        severity=FailureSeverity.ERROR,
+                        is_retryable=False,
+                        requires_review=True,
+                        artifact_ids=(extraction_artifact.artifact_id,),
+                    )
+                    return None
 
         if not facts:
             self._record_failure(
                 job,
-                message=(
-                    f"EntityResolutionArtifact {artifact.artifact_id!r} "
-                    f"contains no CandidateFacts"
-                ),
+                message="no CandidateFacts found across all ExtractionArtifacts",
                 category=FailureCategory.VALIDATION,
                 severity=FailureSeverity.WARNING,
                 is_retryable=False,
                 requires_review=False,
-                artifact_ids=(artifact.artifact_id,),
             )
             return None
 
@@ -208,7 +248,8 @@ class KnowledgeBuildHandler:
             )
         except Exception as exc:
             _log.exception(
-                "job %r: KnowledgeBuildService raised unexpectedly", job.job_id
+                "job %r: KnowledgeBuildService raised unexpectedly",
+                job.job_id,
             )
             self._record_failure(
                 job,
@@ -236,7 +277,9 @@ class KnowledgeBuildHandler:
             snapshot=result.to_dict(),
             source_artifact_ids=(resolution_artifact.artifact_id,),
         )
+
         job.context.artifacts.add(artifact)
+
         _log.info(
             "job %r: KnowledgeBuildArtifact emitted — "
             "entity=%r facts=%d evidence=%d conflicts=%d",
@@ -268,5 +311,12 @@ class KnowledgeBuildHandler:
             requires_review=requires_review,
             artifact_ids=artifact_ids,
         )
+
         job.context.failures.add(failure)
-        _log.error("job %r: [%s] %s", job.job_id, category.value, message)
+
+        _log.error(
+            "job %r: [%s] %s",
+            job.job_id,
+            category.value,
+            message,
+        )

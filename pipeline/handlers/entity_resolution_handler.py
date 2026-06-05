@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import logging
 
-from processing.candidate_fact import CandidateFact
-
 from core.guards import require
 from core.types import EntityId
 from pipeline.artifact import ArtifactType, EntityResolutionArtifact, ExtractionArtifact
@@ -18,6 +16,7 @@ from processing.entity_resolution.entity_resolution_result import EntityResoluti
 from processing.entity_resolution.entity_resolution_service import (
     EntityResolutionService,
 )
+from processing.extraction.candidate_fact import CandidateFact
 
 _log = logging.getLogger(__name__)
 

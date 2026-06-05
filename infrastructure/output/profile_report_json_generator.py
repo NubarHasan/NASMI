@@ -12,7 +12,6 @@ from core.time import utcnow
 from knowledge.profile import Profile, ProfileField
 from output.output_document import OutputDocument
 from output.output_format import OutputFormat
-from output.output_generator import OutputGenerator
 from output.output_ids import OutputDocumentId, generate_output_document_id
 from output.output_request import OutputRequest
 from output.output_type import OutputType

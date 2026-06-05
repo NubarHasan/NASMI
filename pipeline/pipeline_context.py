@@ -52,7 +52,10 @@ class PipelineContext:
 
     @property
     def stage_history(self) -> list[str]:
-        return list(self._stage_history)
+        history = list(self._stage_history)
+        if self.current_stage and self.current_stage not in history:
+            history.append(self.current_stage)
+        return history
 
     def add_artifact(self, artifact: Artifact) -> None:
         require(artifact is not None, "artifact must not be None")

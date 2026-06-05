@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from processing.candidate_fact import CandidateFact
-
 from core.guards import require
 from core.identifiers import generate_entity_id
 from core.types import CandidateFactId, EntityId
+from processing.candidate_fact import CandidateFact
 from processing.entity_resolution.entity_match import (
     EntityMatch,
     EntityMatchBundle,

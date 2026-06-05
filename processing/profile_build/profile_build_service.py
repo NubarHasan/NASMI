@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+from application.services.knowledge_service import KnowledgeApplicationService
 from core.guards import require
 from core.identifiers import is_valid_entity_id
 from core.types import EntityId
-from knowledge.knowledge_service import KnowledgeService
 from knowledge.profile_builder import ProfileBuilder
 from knowledge.profile_schema_registry import get_schema, has_schema
 from processing.profile_build.profile_build_result import ProfileBuildResult
@@ -11,12 +11,12 @@ from processing.profile_build.profile_build_result import ProfileBuildResult
 
 class ProfileBuildService:
 
-    def __init__(self, knowledge_service: KnowledgeService) -> None:
+    def __init__(self, knowledge_app_service: KnowledgeApplicationService) -> None:
         require(
-            isinstance(knowledge_service, KnowledgeService),
-            "knowledge_service must be a KnowledgeService",
+            isinstance(knowledge_app_service, KnowledgeApplicationService),
+            "knowledge_app_service must be a KnowledgeApplicationService",
         )
-        self._ks = knowledge_service
+        self._ks = knowledge_app_service
 
     def build(
         self,
