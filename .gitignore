@@ -64,10 +64,9 @@ logs/
 secrets.toml
 config.local.toml
 
-# Data / models (large files)
+# Data / ML models (large binary files only)
 data/
-models/
-weights/
+/weights/
 *.pt
 *.pth
 *.onnx
@@ -77,12 +76,11 @@ weights/
 *.h5
 *.hdf5
 
-# Uploads / outputs
-uploads/
-output/
-exports/
-temp/
-tmp/
+# Runtime uploads / exports (NOT source code folders)
+/uploads/
+/exports/
+/temp/
+/tmp/
 
 # Jupyter
 .ipynb_checkpoints/
