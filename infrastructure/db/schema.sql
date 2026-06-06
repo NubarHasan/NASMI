@@ -252,9 +252,16 @@ CREATE TABLE IF NOT EXISTS jobs (
 CREATE TABLE IF NOT EXISTS form_templates (
     template_id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
+    form_kind TEXT NOT NULL,
     version INTEGER NOT NULL,
+    fields TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL,
     metadata TEXT NOT NULL DEFAULT '{}'
+);
+CREATE TABLE IF NOT EXISTS form_mappings (
+    mapping_id TEXT PRIMARY KEY,
+    template_id TEXT NOT NULL REFERENCES form_templates(template_id),
+    rules TEXT NOT NULL DEFAULT '[]'
 );
 CREATE TABLE IF NOT EXISTS form_submissions (
     submission_id TEXT PRIMARY KEY,
@@ -265,7 +272,9 @@ CREATE TABLE IF NOT EXISTS form_submissions (
     submitted_at TEXT,
     metadata TEXT NOT NULL DEFAULT '{}'
 );
--- Indexes
+CREATE INDEX IF NOT EXISTS idx_form_mappings_template_id ON form_mappings(template_id);
+CREATE INDEX IF NOT EXISTS idx_form_submissions_template_id ON form_submissions(template_id);
+CREATE INDEX IF NOT EXISTS idx_form_submissions_status ON form_submissions(status);
 CREATE INDEX IF NOT EXISTS idx_documents_entity_id ON documents(entity_id);
 CREATE INDEX IF NOT EXISTS idx_documents_status ON documents(status);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_file_hash ON documents(file_hash);
