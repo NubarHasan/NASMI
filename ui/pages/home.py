@@ -5,101 +5,122 @@ import streamlit as st
 from ui.services.api_client import get_health
 from ui.state.page_id import PageId
 from ui.state.session_keys import SessionKeys
-from ui.state.session_manager import set
+from ui.state.session_manager import get, set
 
-_CARDS: list[tuple[str, str, str, PageId]] = [
+_CSS = """
+<style>
+.home-hero {
+    padding: 1.5rem 0.5rem 1rem;
+}
+.home-title {
+    font-size: 3rem;
+    font-weight: 900;
+    color: #38bdf8;
+    letter-spacing: 4px;
+    margin-bottom: 0;
+}
+.home-subtitle {
+    color: #94a3b8;
+    font-size: 1rem;
+    margin-top: 0.1rem;
+}
+.pipeline-badge {
+    display: inline-block;
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    color: #7dd3fc;
+    font-family: monospace;
+    font-size: 0.85rem;
+    padding: 0.45rem 1rem;
+    border-radius: 999px;
+    margin-top: 0.8rem;
+}
+.metric-card {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 16px;
+    padding: 1rem;
+    min-height: 105px;
+}
+.metric-label {
+    color: #94a3b8;
+    font-size: 0.8rem;
+}
+.metric-value {
+    color: #f8fafc;
+    font-size: 1.7rem;
+    font-weight: 900;
+    margin-top: 0.15rem;
+}
+.metric-note {
+    color: #64748b;
+    font-size: 0.72rem;
+    margin-top: 0.3rem;
+}
+.stage-card {
+    background: #082f49;
+    border: 1px solid #0369a1;
+    border-radius: 16px;
+    padding: 1rem;
+}
+.stage-title {
+    color: #bae6fd;
+    font-size: 1rem;
+    font-weight: 900;
+}
+.stage-text {
+    color: #e0f2fe;
+    font-size: 0.88rem;
+    margin-top: 0.4rem;
+}
+.step-ok {
+    color: #86efac;
+    font-weight: 800;
+}
+.step-wait {
+    color: #fbbf24;
+    font-weight: 800;
+}
+.step-off {
+    color: #64748b;
+    font-weight: 800;
+}
+.page-card-title {
+    font-weight: 900;
+    color: #f8fafc;
+    font-size: 1rem;
+}
+.page-card-desc {
+    color: #94a3b8;
+    font-size: 0.82rem;
+    min-height: 44px;
+}
+</style>
+"""
+
+_PAGES: list[tuple[str, str, str, PageId]] = [
+    (
+        "👤",
+        "Profile",
+        "Create/select entity and inspect trusted profile state.",
+        PageId.PROFILE,
+    ),
     (
         "📄",
         "Documents",
-        "Upload and manage source documents for processing and review.",
+        "Upload source documents and start intake processing.",
         PageId.DOCUMENTS,
     ),
     (
         "🔍",
         "Review",
-        "Inspect extracted data, resolve conflicts, and approve results.",
+        "Approve, reject, or edit extracted candidate facts.",
         PageId.REVIEW,
     ),
-    (
-        "📋",
-        "Forms",
-        "Fill and submit structured forms generated from reviewed data.",
-        PageId.FORMS,
-    ),
-    (
-        "💡",
-        "Advisory",
-        "Query the LLM advisor for guidance based on processed knowledge.",
-        PageId.ADVISORY,
-    ),
-    ("📤", "Outputs", "View and export generated outputs and reports.", PageId.OUTPUTS),
-    (
-        "🔎",
-        "Audit",
-        "Trace and verify the full audit chain of all operations.",
-        PageId.AUDIT,
-    ),
+    ("📋", "Forms", "Use reviewed data to fill structured forms.", PageId.FORMS),
+    ("📤", "Outputs", "Generate, view, and export final packages.", PageId.OUTPUTS),
+    ("🔎", "Audit", "Trace documents, facts, decisions, and outputs.", PageId.AUDIT),
 ]
-
-_CSS = """
-<style>
-.home-hero {
-    text-align: center;
-    padding: 2.5rem 1rem 1rem;
-}
-.home-hero h1 {
-    font-size: 3rem;
-    font-weight: 800;
-    color: #38bdf8;
-    letter-spacing: 4px;
-    margin-bottom: 0.2rem;
-}
-.home-hero p {
-    color: #94a3b8;
-    font-size: 1rem;
-    margin-bottom: 0.5rem;
-}
-.pipeline-badge {
-    display: inline-block;
-    background: #1e293b;
-    color: #7dd3fc;
-    font-family: monospace;
-    font-size: 0.9rem;
-    padding: 0.4rem 1.2rem;
-    border-radius: 20px;
-    margin-bottom: 1.5rem;
-    letter-spacing: 1px;
-}
-.card-icon  { font-size: 2rem; margin-bottom: 0.4rem; }
-.card-title { font-size: 1.1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.3rem; }
-.card-desc  { font-size: 0.82rem; color: #94a3b8; min-height: 48px; }
-.status-row {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0.45rem 0;
-    border-bottom: 1px solid #1e293b;
-    font-size: 0.88rem;
-}
-.status-label { color: #94a3b8; flex: 1; }
-.status-badge-ok  {
-    background: #14532d;
-    color: #86efac;
-    padding: 0.15rem 0.7rem;
-    border-radius: 20px;
-    font-size: 0.78rem;
-    font-weight: 600;
-}
-.status-badge-err {
-    background: #1e293b;
-    color: #f87171;
-    padding: 0.15rem 0.7rem;
-    border-radius: 20px;
-    font-size: 0.78rem;
-    font-weight: 600;
-}
-</style>
-"""
 
 
 def _navigate(page: PageId) -> None:
@@ -107,85 +128,147 @@ def _navigate(page: PageId) -> None:
     st.rerun()
 
 
-def _status_row(icon: str, label: str, value: str, ok: bool) -> str:
-    badge_class = "status-badge-ok" if ok else "status-badge-err"
-    return f"""
-    <div class="status-row">
-        <span>{icon}</span>
-        <span class="status-label">{label}</span>
-        <span class="{badge_class}">{value}</span>
-    </div>"""
+def _metric(label: str, value: int | str, note: str = "") -> None:
+    st.markdown(
+        f"""
+        <div class="metric-card">
+            <div class="metric-label">{label}</div>
+            <div class="metric-value">{value}</div>
+            <div class="metric-note">{note}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _step(label: str, done: bool, active: bool = False) -> str:
+    cls = "step-ok" if done else "step-wait" if active else "step-off"
+    icon = "✅" if done else "🟡" if active else "⚪"
+    return f'<span class="{cls}">{icon} {label}</span>'
 
 
 def render() -> None:
     st.markdown(_CSS, unsafe_allow_html=True)
 
+    health = get_health(get(SessionKeys.ACTIVE_ENTITY_ID))
+
     st.markdown(
         """
-    <div class="home-hero">
-        <h1>NASMI</h1>
-        <p>Neural Automated Secure Management of Information</p>
-        <span class="pipeline-badge">Document → Knowledge → Review → Forms → Output</span>
-    </div>
-    """,
+        <div class="home-hero">
+            <div class="home-title">NASMI</div>
+            <div class="home-subtitle">Neural Automated Secure Management of Information</div>
+            <div class="pipeline-badge">Entity → Documents → Extraction → Review → Profile → Forms → Output → Audit</div>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
-    cols = st.columns(len(_CARDS))
-    for col, (icon, title, desc, page_id) in zip(cols, _CARDS, strict=True):
-        with col, st.container(border=True):
-            st.markdown(f'<div class="card-icon">{icon}</div>', unsafe_allow_html=True)
-            st.markdown(
-                f'<div class="card-title">{title}</div>', unsafe_allow_html=True
+    if not health.db_ok:
+        st.error(f"Database is not available: {health.error}")
+        return
+
+    left, right = st.columns([2, 1])
+
+    with left:
+        st.markdown("### Pipeline Overview")
+
+        m1, m2, m3, m4 = st.columns(4)
+        with m1:
+            _metric(
+                "Entities",
+                health.entities_count,
+                health.active_entity_name or "No active entity",
             )
-            st.markdown(f'<div class="card-desc">{desc}</div>', unsafe_allow_html=True)
+        with m2:
+            _metric(
+                "Documents", health.documents_count, f"{health.sources_count} sources"
+            )
+        with m3:
+            _metric(
+                "Extracted Facts",
+                health.extracted_facts_count,
+                f"{health.accepted_facts_count} accepted",
+            )
+        with m4:
+            _metric("Review Queue", health.pending_review_count, "pending decisions")
+
+        m5, m6, m7, m8 = st.columns(4)
+        with m5:
+            _metric("Profiles", health.profiles_count, "trusted snapshots")
+        with m6:
+            _metric("Noise", health.noise_count, "filtered candidates")
+        with m7:
+            _metric("Outputs", health.outputs_count, "generated files")
+        with m8:
+            _metric("Audit", health.audit_count, "events")
+
+        st.markdown("### Pipeline Stages")
+
+        entity_done = health.entities_count > 0
+        documents_done = health.documents_count > 0
+        extraction_done = health.extracted_facts_count > 0
+        review_done = health.accepted_facts_count > 0
+        profile_done = health.profiles_count > 0
+        output_done = health.outputs_count > 0
+
+        stages = [
+            _step("Entity", entity_done, not entity_done),
+            _step("Documents", documents_done, entity_done and not documents_done),
+            _step(
+                "Extraction", extraction_done, documents_done and not extraction_done
+            ),
+            _step("Review", review_done, extraction_done and not review_done),
+            _step("Profile", profile_done, review_done and not profile_done),
+            _step("Output", output_done, profile_done and not output_done),
+        ]
+
+        st.markdown(" → ".join(stages), unsafe_allow_html=True)
+
+    with right:
+        st.markdown(
+            f"""
+            <div class="stage-card">
+                <div class="stage-title">Current Stage: {health.pipeline_stage}</div>
+                <div class="stage-text">{health.next_step}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.write("")
+        if health.entities_count == 0:
             if st.button(
-                "Open →",
-                key=f"home_open_{page_id}",
-                type="primary",
-                use_container_width=True,
+                "Start with Profile / Entity", type="primary", use_container_width=True
             ):
-                _navigate(page_id)
+                _navigate(PageId.PROFILE)
+        elif health.documents_count == 0:
+            if st.button("Go to Documents", type="primary", use_container_width=True):
+                _navigate(PageId.DOCUMENTS)
+        elif health.pending_review_count > 0:
+            if st.button("Go to Review", type="primary", use_container_width=True):
+                _navigate(PageId.REVIEW)
+        elif health.profiles_count == 0:
+            if st.button("Go to Profile", type="primary", use_container_width=True):
+                _navigate(PageId.PROFILE)
+        else:
+            if st.button("Continue Pipeline", type="primary", use_container_width=True):
+                _navigate(PageId.DOCUMENTS)
 
     st.divider()
 
-    health = get_health()
+    st.markdown("### Pipeline Pages")
 
-    left, _ = st.columns([1, 2])
-    with left:
-        st.markdown("### 🖥️ System Status")
-
-        rows = "".join(
-            [
-                _status_row(
-                    "🔌",
-                    "Backend",
-                    "Connected" if health.db_ok else "Not Connected",
-                    health.db_ok,
-                ),
-                _status_row(
-                    "📥",
-                    "Review Queue",
-                    (
-                        f"{health.review_queue_count} pending"
-                        if health.db_ok
-                        else "Unknown"
-                    ),
-                    health.db_ok,
-                ),
-                _status_row(
-                    "🗄️",
-                    "Knowledge Vault",
-                    (
-                        f"{health.knowledge_facts_count} facts"
-                        if health.db_ok
-                        else "Unknown"
-                    ),
-                    health.db_ok,
-                ),
-            ]
-        )
-        st.markdown(rows, unsafe_allow_html=True)
-
-        if health.error:
-            st.caption(f"⚠️ {health.error}")
+    cols = st.columns(3)
+    for index, (icon, title, desc, page_id) in enumerate(_PAGES):
+        with cols[index % 3], st.container(border=True):
+            st.markdown(f"## {icon}")
+            st.markdown(
+                f'<div class="page-card-title">{title}</div>', unsafe_allow_html=True
+            )
+            st.markdown(
+                f'<div class="page-card-desc">{desc}</div>', unsafe_allow_html=True
+            )
+            if st.button(
+                "Open →", key=f"home_open_{page_id}", use_container_width=True
+            ):
+                _navigate(page_id)

@@ -8,8 +8,8 @@ from processing.llm.proactive_advisor import ProactiveAdvisor
 
 def make_proactive_advisor(
     locale: str = "en",
+    fast: bool = True,
     llm: LLMPort | None = None,
-    fast: bool = False,
 ) -> ProactiveAdvisor:
     resolved_llm = llm or (make_fast_llm() if fast else make_quality_llm())
     return ProactiveAdvisor(llm=resolved_llm, locale=locale)
@@ -17,14 +17,16 @@ def make_proactive_advisor(
 
 def make_personal_advisor(
     locale: str = "en",
+    fast: bool = True,
     llm: LLMPort | None = None,
-    fast: bool = False,
 ) -> PersonalAdvisor:
     resolved_llm = llm or (make_fast_llm() if fast else make_quality_llm())
     return PersonalAdvisor(llm=resolved_llm, locale=locale)
 
 
-def make_null_advisors(locale: str = "en") -> tuple[ProactiveAdvisor, PersonalAdvisor]:
+def make_null_advisors(
+    locale: str = "en",
+) -> tuple[ProactiveAdvisor, PersonalAdvisor]:
     llm = make_null_llm()
     return (
         ProactiveAdvisor(llm=llm, locale=locale),

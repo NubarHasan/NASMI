@@ -285,6 +285,30 @@ CREATE TABLE IF NOT EXISTS profiles (
     computed_at TEXT NOT NULL,
     metadata TEXT NOT NULL DEFAULT '{}'
 );
+CREATE TABLE IF NOT EXISTS noise_items (
+    noise_id TEXT PRIMARY KEY,
+    entity_id TEXT,
+    document_id TEXT,
+    source_id TEXT,
+    stage TEXT NOT NULL,
+    raw_text TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    confidence REAL NOT NULL DEFAULT 0.0 CHECK (
+        confidence >= 0.0
+        AND confidence <= 1.0
+    ),
+    status TEXT NOT NULL CHECK (
+        status IN ('open', 'reviewed', 'ignored', 'promoted')
+    ),
+    created_at TEXT NOT NULL,
+    reviewed_at TEXT,
+    metadata TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_noise_items_entity_id ON noise_items(entity_id);
+CREATE INDEX IF NOT EXISTS idx_noise_items_document_id ON noise_items(document_id);
+CREATE INDEX IF NOT EXISTS idx_noise_items_status ON noise_items(status);
+CREATE INDEX IF NOT EXISTS idx_noise_items_stage ON noise_items(stage);
+CREATE INDEX IF NOT EXISTS idx_noise_items_created_at ON noise_items(created_at);
 CREATE INDEX IF NOT EXISTS idx_form_mappings_template_id ON form_mappings(template_id);
 CREATE INDEX IF NOT EXISTS idx_form_submissions_template_id ON form_submissions(template_id);
 CREATE INDEX IF NOT EXISTS idx_form_submissions_status ON form_submissions(status);

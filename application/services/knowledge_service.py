@@ -30,24 +30,156 @@ class KnowledgeApplicationService:
         conflicts: list[Conflict],
     ) -> None:
         with self._uow_factory() as uow:
-            self._ensure_sources(uow, facts, evidence_list)
+            existing_keys = self._load_existing_fact_keys(uow, facts)
+            kept_facts, skipped_fact_ids = self._deduplicate_facts(facts, existing_keys)
 
-            for fact in facts:
+            kept_fact_ids = {
+                str(self._get_attr(fact, "fact_id"))
+                for fact in kept_facts
+                if self._get_attr(fact, "fact_id") is not None
+            }
+
+            kept_links = [
+                link
+                for link in fact_evidence_links
+                if self._belongs_to_kept_fact(link, kept_fact_ids, skipped_fact_ids)
+            ]
+
+            kept_evidence_ids = {
+                str(self._get_attr(link, "evidence_id"))
+                for link in kept_links
+                if self._get_attr(link, "evidence_id") is not None
+            }
+
+            kept_evidence = [
+                evidence
+                for evidence in evidence_list
+                if str(self._get_attr(evidence, "evidence_id")) in kept_evidence_ids
+            ]
+
+            kept_provenance = [
+                provenance
+                for provenance in provenance_list
+                if self._belongs_to_kept_fact(
+                    provenance, kept_fact_ids, skipped_fact_ids
+                )
+            ]
+
+            kept_conflicts = [
+                conflict
+                for conflict in conflicts
+                if self._belongs_to_kept_fact(conflict, kept_fact_ids, skipped_fact_ids)
+            ]
+
+            self._ensure_sources(uow, kept_facts, kept_evidence)
+
+            for fact in kept_facts:
                 uow.facts.save(fact)
 
-            for evidence in evidence_list:
+            for evidence in kept_evidence:
                 uow.evidence.save(evidence)
 
-            for link in fact_evidence_links:
+            for link in kept_links:
                 uow.fact_evidence.save(link)
 
-            for provenance in provenance_list:
+            for provenance in kept_provenance:
                 uow.provenance.save(provenance)
 
-            for conflict in conflicts:
+            for conflict in kept_conflicts:
                 uow.conflicts.save(conflict)
 
             uow.commit()
+
+    def _load_existing_fact_keys(
+        self,
+        uow: KnowledgeUnitOfWork,
+        facts: list[Fact],
+    ) -> set[tuple[str, str, str]]:
+        keys: set[tuple[str, str, str]] = set()
+        entity_ids = {
+            EntityId(str(self._get_attr(fact, "entity_id")))
+            for fact in facts
+            if self._get_attr(fact, "entity_id") is not None
+        }
+
+        for entity_id in entity_ids:
+            existing_facts = uow.facts.list_by_entity(entity_id)
+            for existing_fact in existing_facts:
+                key = self._fact_key(existing_fact)
+                if key is not None:
+                    keys.add(key)
+
+        return keys
+
+    def _deduplicate_facts(
+        self,
+        facts: list[Fact],
+        existing_keys: set[tuple[str, str, str]],
+    ) -> tuple[list[Fact], set[str]]:
+        kept: list[Fact] = []
+        skipped_fact_ids: set[str] = set()
+        seen_keys = set(existing_keys)
+
+        for fact in facts:
+            fact_id = self._get_attr(fact, "fact_id")
+            key = self._fact_key(fact)
+
+            if key is None:
+                kept.append(fact)
+                continue
+
+            if key in seen_keys:
+                if fact_id is not None:
+                    skipped_fact_ids.add(str(fact_id))
+                continue
+
+            seen_keys.add(key)
+            kept.append(fact)
+
+        return kept, skipped_fact_ids
+
+    def _fact_key(self, fact: Any) -> tuple[str, str, str] | None:
+        entity_id = self._get_attr(fact, "entity_id")
+        field_name = self._get_attr(fact, "field_name")
+        canonical_value = self._get_attr(fact, "canonical_value")
+
+        if canonical_value is None:
+            canonical_value = self._get_attr(fact, "display_value")
+
+        if entity_id is None or field_name is None or canonical_value is None:
+            return None
+
+        normalized_value = self._normalize_key_value(str(canonical_value))
+        normalized_field = str(field_name).strip().lower()
+        normalized_entity = str(entity_id).strip()
+
+        if not normalized_entity or not normalized_field or not normalized_value:
+            return None
+
+        return normalized_entity, normalized_field, normalized_value
+
+    def _normalize_key_value(self, value: str) -> str:
+        return " ".join(value.strip().lower().split())
+
+    def _belongs_to_kept_fact(
+        self,
+        obj: Any,
+        kept_fact_ids: set[str],
+        skipped_fact_ids: set[str],
+    ) -> bool:
+        fact_id = self._get_attr(obj, "fact_id")
+
+        if fact_id is not None:
+            fact_id_value = str(fact_id)
+            if fact_id_value in skipped_fact_ids:
+                return False
+            return fact_id_value in kept_fact_ids
+
+        candidate_fact_id = self._get_attr(obj, "candidate_fact_id")
+        if candidate_fact_id is not None:
+            return True
+
+        return True
 
     def _ensure_sources(
         self,

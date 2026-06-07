@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import json
 import logging
-from typing import Final
+from typing import Any, Final
 
 from application.ports.review_case_writer import ReviewCaseWriter
 from application.services.knowledge_service import KnowledgeApplicationService
@@ -16,8 +17,36 @@ from review.review_type import ReviewPriority
 
 _log = logging.getLogger(__name__)
 
-_AUTO_ACCEPT_THRESHOLD: Final[float] = 0.75
+_MRZ_AUTO_ACCEPT_THRESHOLD: Final[float] = 0.90
 _SYSTEM_ACTOR: Final[str] = "system"
+
+_NEVER_AUTO_ACCEPT_FIELDS: frozenset[str] = frozenset(
+    {
+        "document_label",
+        "review_candidate",
+        "possible_location",
+        "possible_date",
+        "document_keyword",
+        "mrz_confidence",
+        "mrz_status",
+        "mrz_check_passed",
+    }
+)
+
+_OCR_REVIEW_FIELDS: frozenset[str] = frozenset(
+    {
+        "passport_number",
+        "surname",
+        "given_names",
+        "nationality",
+        "date_of_birth",
+        "date_of_expiry",
+        "date_of_issue",
+        "place_of_birth",
+        "issuing_authority",
+        "personal_number",
+    }
+)
 
 
 def _resolve_priority(confidence: float) -> ReviewPriority:
@@ -26,6 +55,21 @@ def _resolve_priority(confidence: float) -> ReviewPriority:
     if confidence < 0.60:
         return ReviewPriority.NORMAL
     return ReviewPriority.LOW
+
+
+def _safe_json_loads(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+
+    if not isinstance(value, str) or not value.strip():
+        return {}
+
+    try:
+        loaded = json.loads(value)
+    except Exception:
+        return {}
+
+    return loaded if isinstance(loaded, dict) else {}
 
 
 class FactAcceptanceService:
@@ -66,7 +110,10 @@ class FactAcceptanceService:
         rejected: list[Fact] = []
 
         for fact in pending_facts:
-            if fact.confidence >= _AUTO_ACCEPT_THRESHOLD:
+            evidence_ids = tuple(self._knowledge.list_evidence_ids(fact.fact_id))
+            metadata = self._metadata_for_fact(fact, evidence_ids)
+
+            if self._should_auto_accept(fact, metadata):
                 outcome = self._knowledge.accept_fact(
                     fact_id=fact.fact_id,
                     accepted_by=_SYSTEM_ACTOR,
@@ -82,7 +129,6 @@ class FactAcceptanceService:
 
                 continue
 
-            evidence_ids = self._knowledge.list_evidence_ids(fact.fact_id)
             if not evidence_ids:
                 _log.warning(
                     "skipping review — no evidence for fact=%s field=%s",
@@ -92,6 +138,18 @@ class FactAcceptanceService:
                 rejected.append(fact)
                 continue
 
+            case_metadata = {
+                "fact_id": str(fact.fact_id),
+                "field_name": fact.field_name,
+                "original_value": fact.display_value,
+                "canonical_value": fact.canonical_value,
+                "confidence": fact.confidence,
+                "review_editable": True,
+                "auto_accept": False,
+                "source": metadata.get("source", "unknown"),
+                "evidence_metadata": metadata,
+            }
+
             case = self._review.open_case(
                 entity_id=fact.entity_id,
                 candidate_fact_id=generate_candidate_fact_id(),
@@ -99,8 +157,9 @@ class FactAcceptanceService:
                 raw_value=fact.display_value,
                 normalized_value=fact.display_value,
                 confidence=fact.confidence,
-                evidence_ids=tuple(evidence_ids),
+                evidence_ids=evidence_ids,
                 priority=_resolve_priority(fact.confidence),
+                metadata=case_metadata,
             )
             review_cases.append(case)
 
@@ -111,3 +170,49 @@ class FactAcceptanceService:
             conflicts=tuple(conflicts),
             rejected_facts=tuple(rejected),
         )
+
+    def _should_auto_accept(self, fact: Fact, metadata: dict[str, Any]) -> bool:
+        if fact.field_name in _NEVER_AUTO_ACCEPT_FIELDS:
+            return False
+
+        if metadata.get("auto_accept") is False:
+            return False
+
+        if metadata.get("role") == "document_label":
+            return False
+
+        if metadata.get("is_person_fact") is False:
+            return False
+
+        source = str(metadata.get("source", "")).lower()
+        mrz_check_passed = metadata.get("mrz_check_passed")
+
+        if source == "mrz":
+            return (
+                bool(mrz_check_passed) and fact.confidence >= _MRZ_AUTO_ACCEPT_THRESHOLD
+            )
+
+        if fact.field_name in _OCR_REVIEW_FIELDS:
+            return False
+
+        return False
+
+    def _metadata_for_fact(
+        self,
+        fact: Fact,
+        evidence_ids: tuple,
+    ) -> dict[str, Any]:
+        if not evidence_ids:
+            return {}
+
+        try:
+            evidence_id = str(evidence_ids[0])
+            rows = self._knowledge.list_evidence_for_fact(fact.fact_id)
+            if rows:
+                ev = rows[0]
+                metadata = getattr(ev, "metadata", {}) or {}
+                return _safe_json_loads(metadata)
+        except Exception:
+            return {}
+
+        return {}

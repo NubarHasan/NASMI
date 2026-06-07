@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import Any
 
 
 class ReviewStatus(StrEnum):
@@ -56,11 +57,19 @@ class ReviewCaseDetail:
     status: ReviewStatus
     suggestions: tuple[Suggestion, ...] = ()
     conflicts: tuple[Conflict, ...] = ()
+    confidence: float = 0.0
+    metadata: dict[str, Any] = field(default_factory=dict)
+    fact_type: str = ""
+    raw_value: str = ""
+    normalized_value: str = ""
+    canonical_field: str = ""
+    field_options: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
 class DecisionResult:
-    case_id: str
-    decision: DecisionType
     success: bool
+    case_id: str = ""
+    decision: DecisionType | None = None
     message: str = ""
+    error: str = ""

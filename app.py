@@ -4,6 +4,7 @@ from pathlib import Path
 import streamlit as st
 
 from infrastructure.db.connection import init_db
+from ui.components.assistant.floating_assistant import render_floating_assistant
 from ui.layout.page_container import render_page_container
 from ui.layout.topbar import render_topbar
 from ui.pages.advisory import render as render_advisory
@@ -43,3 +44,4 @@ render_topbar()
 
 current_page = PageId(get(SessionKeys.CURRENT_PAGE))
 render_page_container(_PAGES.get(current_page, render_home))
+render_floating_assistant()

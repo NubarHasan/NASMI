@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from application.services.review_service import ReviewApplicationService
 from core.guards import require
 from core.types import CandidateFactId, ConfidenceScore, EntityId, EvidenceId
@@ -8,13 +10,6 @@ from review.review_type import ReviewPriority
 
 
 class ReviewCaseWriterAdapter:
-    """
-    Adapts ReviewApplicationService → ReviewCaseWriter Port.
-
-    FactAcceptanceService يستدعي open_case(**fields).
-    ReviewApplicationService يتوقع open_case(case: ReviewCase).
-    هذا الـ Adapter يبني الـ ReviewCase ويفوّض للـ Application Service.
-    """
 
     def __init__(self, service: ReviewApplicationService) -> None:
         require(
@@ -33,6 +28,7 @@ class ReviewCaseWriterAdapter:
         confidence: ConfidenceScore,
         evidence_ids: tuple[EvidenceId, ...],
         priority: ReviewPriority = ReviewPriority.NORMAL,
+        metadata: dict[str, Any] | None = None,
     ) -> ReviewCase:
         case = ReviewCase.create(
             entity_id=entity_id,
@@ -43,5 +39,6 @@ class ReviewCaseWriterAdapter:
             confidence=confidence,
             evidence_ids=evidence_ids,
             priority=priority,
+            metadata=metadata,
         )
         return self._service.open_case(case)

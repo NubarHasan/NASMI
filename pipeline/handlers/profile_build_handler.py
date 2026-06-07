@@ -57,7 +57,12 @@ class ProfileBuildHandler:
 
         if not fa_artifacts:
             job.context.failures.add(
-                _failure(job.job_id, "no FactAcceptanceArtifact found in bundle")
+                _failure(
+                    job.job_id,
+                    "no FactAcceptanceArtifact found in bundle",
+                    severity=FailureSeverity.WARNING,
+                    requires_review=False,
+                )
             )
             return
 
@@ -70,6 +75,8 @@ class ProfileBuildHandler:
                 _failure(
                     job.job_id,
                     f"entity {entity_id!r} not found in knowledge store",
+                    severity=FailureSeverity.ERROR,
+                    requires_review=True,
                 )
             )
             return
@@ -81,8 +88,31 @@ class ProfileBuildHandler:
                 display_name=entity.display_name,
             )
         except Exception as exc:
+            message = str(exc)
+            if "no facts added" in message.lower():
+                _log.warning(
+                    "profile build skipped for entity %r — no accepted facts available",
+                    entity_id,
+                )
+                job.context.failures.add(
+                    _failure(
+                        job.job_id,
+                        "Profile build skipped: no accepted facts available yet",
+                        severity=FailureSeverity.WARNING,
+                        requires_review=False,
+                    )
+                )
+                return
+
             _log.exception("ProfileBuildService.build failed for entity %r", entity_id)
-            job.context.failures.add(_failure(job.job_id, str(exc)))
+            job.context.failures.add(
+                _failure(
+                    job.job_id,
+                    message,
+                    severity=FailureSeverity.ERROR,
+                    requires_review=True,
+                )
+            )
             return
 
         snapshot = {
@@ -115,14 +145,19 @@ class ProfileBuildHandler:
         )
 
 
-def _failure(job_id: str, message: str) -> PipelineFailure:
+def _failure(
+    job_id: str,
+    message: str,
+    severity: FailureSeverity,
+    requires_review: bool,
+) -> PipelineFailure:
     return PipelineFailure.create(
         job_id=job_id,
         stage=_STAGE,
         category=FailureCategory.SYSTEM,
-        severity=FailureSeverity.ERROR,
+        severity=severity,
         source=FailureSource.SYSTEM,
         message=message,
         is_retryable=False,
-        requires_review=True,
+        requires_review=requires_review,
     )

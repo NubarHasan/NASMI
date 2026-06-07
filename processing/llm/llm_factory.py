@@ -7,7 +7,7 @@ from processing.llm.gguf_llm_adapter import GGUFLLMAdapter
 from processing.llm.llm_port import LLMPort
 from processing.llm.null_llm import NullLLM
 
-_ADVISORY_STOP = ["Note:", "Additionally,", "Furthermore,"]
+_ADVISORY_STOP = ["Note:", "Additionally:", "Furthermore:"]
 
 
 def make_fast_llm() -> LLMPort:
@@ -34,6 +34,20 @@ def make_quality_llm() -> LLMPort:
             temperature=0.2,
             repeat_penalty=1.3,
             stop=_ADVISORY_STOP,
+        ),
+    )
+
+
+def make_extraction_llm() -> LLMPort:
+    return cast(
+        LLMPort,
+        GGUFLLMAdapter.cpu(
+            model_path=QWEN_1_5B,
+            n_ctx=8192,
+            max_tokens=500,
+            temperature=0.0,
+            repeat_penalty=1.15,
+            stop=[],
         ),
     )
 

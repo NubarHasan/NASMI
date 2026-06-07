@@ -18,6 +18,7 @@ from pipeline.failure import (
 from pipeline.job import Job
 from processing.entity_resolution.entity_resolution_result import EntityResolutionResult
 from processing.extraction.candidate_fact import CandidateFact
+from processing.extraction.quality_gate import is_valid_candidate_fact
 from processing.knowledge_build.knowledge_build_result import KnowledgeBuildResult
 from processing.knowledge_build.knowledge_build_service import KnowledgeBuildService
 
@@ -57,6 +58,18 @@ class KnowledgeBuildHandler:
         if candidate_facts is None:
             return
 
+        candidate_facts = self._filter_candidate_facts(job, candidate_facts)
+        if not candidate_facts:
+            self._record_failure(
+                job,
+                message="all CandidateFacts were rejected by quality gate",
+                category=FailureCategory.VALIDATION,
+                severity=FailureSeverity.WARNING,
+                is_retryable=False,
+                requires_review=False,
+            )
+            return
+
         result = self._run_build(
             job,
             entity_resolution_result,
@@ -70,6 +83,32 @@ class KnowledgeBuildHandler:
             resolution_artifact,
             result,
         )
+
+    def _filter_candidate_facts(
+        self,
+        job: Job,
+        candidate_facts: tuple[CandidateFact, ...],
+    ) -> tuple[CandidateFact, ...]:
+        accepted: list[CandidateFact] = []
+        rejected = 0
+
+        for fact in candidate_facts:
+            try:
+                if is_valid_candidate_fact(fact):
+                    accepted.append(fact)
+                else:
+                    rejected += 1
+            except Exception:
+                rejected += 1
+
+        if rejected:
+            _log.info(
+                "job %r: quality gate rejected %d CandidateFacts before knowledge build",
+                job.job_id,
+                rejected,
+            )
+
+        return tuple(accepted)
 
     def _resolve_resolution_artifact(
         self,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from core.types import (
     CandidateFactId,
@@ -23,5 +23,6 @@ class ReviewCaseWriter(Protocol):
         normalized_value: str,
         confidence: ConfidenceScore,
         evidence_ids: tuple[EvidenceId, ...],
-        priority: ReviewPriority,
+        priority: ReviewPriority = ReviewPriority.NORMAL,
+        metadata: dict[str, Any] | None = None,
     ) -> ReviewCase: ...

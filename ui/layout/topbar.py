@@ -2,60 +2,52 @@ from __future__ import annotations
 
 import streamlit as st
 
-from ui.services.api_client import list_entities
+from ui.layout.navigation import nav_items
+from ui.services.api_client import list_entities, resolve_active_entity_id
 from ui.state.page_id import PageId
 from ui.state.session_keys import SessionKeys
 from ui.state.session_manager import get, set
 
-_NAV_ITEMS: list[tuple[str, PageId]] = [
-    ("🏠 Home", PageId.HOME),
-    ("📄 Documents", PageId.DOCUMENTS),
-    ("🔍 Review", PageId.REVIEW),
-    ("👤 Profile", PageId.PROFILE),
-    ("📋 Forms", PageId.FORMS),
-    ("💡 Advisory", PageId.ADVISORY),
-    ("📤 Outputs", PageId.OUTPUTS),
-    ("🔎 Audit", PageId.AUDIT),
-    ("⚙️ Settings", PageId.SETTINGS),
-]
-
 _CSS = """
 <style>
-[data-testid="stHorizontalBlock"]:first-of-type {
+.nasmi-topbar {
     background: #0f172a;
-    padding: 0.5rem 1.2rem;
-    border-radius: 0 0 12px 12px;
+    border: 1px solid #1e293b;
+    border-radius: 16px;
+    padding: 0.7rem 0.9rem;
     margin-bottom: 1rem;
-    align-items: center;
 }
-[data-testid="stHorizontalBlock"]:first-of-type p strong {
+.nasmi-brand {
     color: #38bdf8;
-    font-size: 1.25rem;
-    letter-spacing: 2px;
+    font-size: 1.35rem;
+    font-weight: 900;
+    letter-spacing: 3px;
+    line-height: 1;
 }
-[data-testid="stHorizontalBlock"]:first-of-type button[kind="secondary"] {
-    background: transparent !important;
-    border: none !important;
-    color: #94a3b8 !important;
-    font-size: 0.78rem !important;
-    padding: 0.3rem 0.5rem !important;
-    border-radius: 6px !important;
-    transition: background 0.2s, color 0.2s;
-    white-space: nowrap;
-}
-[data-testid="stHorizontalBlock"]:first-of-type button[kind="secondary"]:hover {
-    background: #1e293b !important;
-    color: #f1f5f9 !important;
+.nasmi-subtitle {
+    color: #64748b;
+    font-size: 0.72rem;
+    margin-top: 0.15rem;
 }
 .nav-active {
-    background: #1e40af;
-    color: #e0f2fe !important;
+    background: #1d4ed8;
+    color: #e0f2fe;
     font-size: 0.78rem;
-    font-weight: 700;
-    padding: 0.3rem 0.7rem;
-    border-radius: 6px;
-    display: inline-block;
+    font-weight: 800;
+    padding: 0.38rem 0.5rem;
+    border-radius: 8px;
+    display: block;
+    text-align: center;
     white-space: nowrap;
+}
+.entity-empty {
+    color: #f59e0b;
+    background: #451a03;
+    border: 1px solid #92400e;
+    border-radius: 10px;
+    padding: 0.45rem 0.7rem;
+    font-size: 0.8rem;
+    text-align: center;
 }
 </style>
 """
@@ -66,43 +58,66 @@ def _navigate(page: PageId) -> None:
     st.rerun()
 
 
-def render_topbar() -> None:
-    st.markdown(_CSS, unsafe_allow_html=True)
+def _sync_active_entity() -> None:
+    current_id = get(SessionKeys.ACTIVE_ENTITY_ID)
+    resolved_id = resolve_active_entity_id(current_id)
+    if resolved_id != current_id:
+        set(SessionKeys.ACTIVE_ENTITY_ID, resolved_id)
+        set(SessionKeys.ACTIVE_USER_ID, resolved_id)
 
-    current = get(SessionKeys.CURRENT_PAGE)
-    title_col, entity_col, *nav_cols = st.columns([2, 2] + [1] * len(_NAV_ITEMS))
+
+def render_topbar() -> None:
+    _sync_active_entity()
+    st.markdown(_CSS, unsafe_allow_html=True)
+    st.markdown('<div class="nasmi-topbar">', unsafe_allow_html=True)
+
+    items = nav_items()
+    current = PageId(get(SessionKeys.CURRENT_PAGE))
+    title_col, entity_col, *nav_cols = st.columns([1.4, 1.8] + [1] * len(items))
 
     with title_col:
-        st.markdown("**NASMI**")
+        st.markdown('<div class="nasmi-brand">NASMI</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="nasmi-subtitle">Secure Information Pipeline</div>',
+            unsafe_allow_html=True,
+        )
 
     with entity_col:
         entities = list_entities()
+        current_id = get(SessionKeys.ACTIVE_ENTITY_ID)
+
         if entities:
-            options = {e.display_name: e.entity_id for e in entities}
-            current_id = get(SessionKeys.ACTIVE_ENTITY_ID)
-            current_name = next(
-                (e.display_name for e in entities if e.entity_id == current_id),
-                None,
+            options = {
+                f"{e.display_name} · {e.entity_type}": e.entity_id for e in entities
+            }
+            labels = list(options.keys())
+            current_label = next(
+                (
+                    label
+                    for label, entity_id in options.items()
+                    if entity_id == current_id
+                ),
+                labels[0],
             )
-            selected_name = st.selectbox(
-                "Entity",
-                list(options.keys()),
-                index=list(options.keys()).index(current_name) if current_name else 0,
+            selected = st.selectbox(
+                "Active entity",
+                labels,
+                index=labels.index(current_label),
                 label_visibility="collapsed",
-                key="topbar_entity_select",
+                key="topbar_active_entity",
             )
-            selected_id = options[selected_name]
+            selected_id = options[selected]
             if selected_id != current_id:
                 set(SessionKeys.ACTIVE_ENTITY_ID, selected_id)
                 set(SessionKeys.ACTIVE_USER_ID, selected_id)
                 st.rerun()
-            elif current_id is None:
-                set(SessionKeys.ACTIVE_ENTITY_ID, selected_id)
-                set(SessionKeys.ACTIVE_USER_ID, selected_id)
         else:
-            st.caption("No entities")
+            st.markdown(
+                '<div class="entity-empty">No active entity · Start from Profile</div>',
+                unsafe_allow_html=True,
+            )
 
-    for col, (label, page_id) in zip(nav_cols, _NAV_ITEMS, strict=True):
+    for col, (label, page_id) in zip(nav_cols, items, strict=True):
         with col:
             if current == page_id:
                 st.markdown(
@@ -112,3 +127,5 @@ def render_topbar() -> None:
             else:
                 if st.button(label, key=f"nav_{page_id}", use_container_width=True):
                     _navigate(page_id)
+
+    st.markdown("</div>", unsafe_allow_html=True)
