@@ -7,6 +7,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from core.guards import require
+from core.identifiers import is_valid_span_id
 from core.types import (
     DocumentId,
     EntityId,
@@ -70,6 +71,33 @@ _DE_MONTH_NAMES: dict[str, str] = {
 _DEFAULT_PIVOT: int = 30
 
 
+def _fallback_span_ids(document_id: DocumentId) -> tuple[SpanId, ...]:
+    clean_id = str(document_id).replace("DOC-", "").replace("_", "").replace("-", "")
+    clean_id = re.sub(r"[^0-9A-Fa-f]", "", clean_id).upper()
+
+    if len(clean_id) < 32:
+        clean_id = clean_id.ljust(32, "0")
+
+    return (SpanId(f"ESP-{clean_id[:32]}"),)
+
+
+def _safe_span_ids(
+    document_id: DocumentId,
+    span_ids: tuple[SpanId, ...],
+) -> tuple[SpanId, ...]:
+    valid: list[SpanId] = []
+
+    for span_id in span_ids:
+        value = str(span_id).strip()
+        if is_valid_span_id(value):
+            valid.append(SpanId(value))
+
+    if valid:
+        return tuple(valid)
+
+    return _fallback_span_ids(document_id)
+
+
 class GermanDocumentExtractor(ABC):
 
     @property
@@ -91,9 +119,11 @@ class GermanDocumentExtractor(ABC):
             isinstance(request, ExtractionRequest),
             "request must be an ExtractionRequest",
         )
+
         content = request.content
         document_id = content.document_id
         source_id = content.source_id
+
         try:
             facts = self._extract(request)
             return self._success(document_id, source_id, facts)
@@ -158,6 +188,8 @@ class GermanDocumentExtractor(ABC):
         span_ids: tuple[SpanId, ...],
         metadata: dict[str, Any] | None = None,
     ) -> CandidateFact:
+        safe_span_ids = _safe_span_ids(document_id, span_ids)
+
         return CandidateFact.create(
             document_id=document_id,
             source_id=source_id,
@@ -167,7 +199,7 @@ class GermanDocumentExtractor(ABC):
             raw_value=raw_value,
             normalized_value=normalized_value,
             confidence=round(max(0.0, min(1.0, confidence)), 4),
-            span_ids=span_ids,
+            span_ids=safe_span_ids,
             metadata=metadata,
         )
 
@@ -179,11 +211,13 @@ class GermanDocumentExtractor(ABC):
     def _normalize_german_date(self, raw: str) -> str | None:
         raw = raw.strip()
         m = _DE_DATE_RE.match(raw)
+
         if m:
             day = m.group("day").zfill(2)
             month = m.group("month").zfill(2)
             year = m.group("year")
             return f"{year}-{month}-{day}"
+
         lower = raw.lower()
         for name, num in _DE_MONTH_NAMES.items():
             pattern = re.compile(
@@ -195,15 +229,19 @@ class GermanDocumentExtractor(ABC):
                 day = match.group("day").zfill(2)
                 year = match.group("year")
                 return f"{year}-{num}-{day}"
+
         return None
 
     def _normalize_german_number(self, raw: str) -> float | None:
         raw = raw.strip()
         m = _DE_NUMBER_RE.fullmatch(raw)
+
         if not m:
             return None
+
         integer_part = m.group("integer").replace(".", "")
         decimal_part = m.group("decimal") or "0"
+
         try:
             return float(f"{integer_part}.{decimal_part}")
         except ValueError:
@@ -211,8 +249,10 @@ class GermanDocumentExtractor(ABC):
 
     def _combine_confidence(self, confidences: Iterable[float]) -> float:
         values = list(confidences)
+
         if not values:
             return 0.0
+
         return round(sum(values) / len(values), 4)
 
     def _success(
@@ -239,8 +279,10 @@ class GermanDocumentExtractor(ABC):
         metadata: dict[str, Any] | None = None,
     ) -> ExtractionResult:
         base_meta: dict[str, Any] = {"reason": reason}
+
         if metadata:
             base_meta.update(metadata)
+
         return ExtractionResult.failure(
             document_id=document_id,
             source_id=source_id,

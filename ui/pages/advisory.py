@@ -4,6 +4,7 @@ import streamlit as st
 
 from processing.llm.advisory_result import AdvisoryResult
 from processing.llm.personal_advisor.advice_item import PersonalAdvisoryResult
+from ui.services.api_client import list_entities
 from ui.state import session_manager as sm
 from ui.state.session_keys import SessionKeys
 from ui.viewmodels.advisory_cache import AdvisoryCache
@@ -21,7 +22,7 @@ def _severity_badge(severity: str) -> str:
 
 
 def _load_cache(vm: AdvisoryVM, entity_id: str, force: bool = False) -> AdvisoryCache:
-    cached = sm.get(SessionKeys.ADVISORY_CACHE)
+    cached: AdvisoryCache | None = sm.get(SessionKeys.ADVISORY_CACHE)
     if not force and cached is not None and cached.entity_id == entity_id:
         return cached
     personal, proactive = vm.refresh(entity_id)
@@ -35,7 +36,7 @@ def _load_cache(vm: AdvisoryVM, entity_id: str, force: bool = False) -> Advisory
 
 
 def _render_personal_advisory(result: PersonalAdvisoryResult) -> None:
-    st.subheader("Personal Advisory")
+    st.subheader("🧠 Personal Advisory")
     if not result.items:
         st.info("No personal advisory items.")
         return
@@ -49,7 +50,7 @@ def _render_personal_advisory(result: PersonalAdvisoryResult) -> None:
 
 
 def _render_proactive_advisory(result: AdvisoryResult) -> None:
-    st.subheader("Proactive Advisory")
+    st.subheader("📡 Proactive Advisory")
     if not result.items:
         st.info("No proactive advisory items.")
         return
@@ -64,15 +65,73 @@ def _render_proactive_advisory(result: AdvisoryResult) -> None:
             st.caption(item.suggestion)
 
 
-def render() -> None:
-    vm = AdvisoryVM()
-    entity_id = sm.get(SessionKeys.ACTIVE_ENTITY_ID)
+def _render_chat(vm: AdvisoryVM, entity_id: str) -> None:
+    st.subheader("💬 Ask Your Advisor")
 
-    if entity_id is None:
-        st.info("No active entity. Select an entity first.")
+    if "advisory_chat_history" not in st.session_state:
+        st.session_state.advisory_chat_history = []
+
+    for msg in st.session_state.advisory_chat_history:
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
+
+    question = st.chat_input(
+        "Ask anything about your profile, documents, or situation..."
+    )
+
+    if question:
+        st.session_state.advisory_chat_history.append(
+            {"role": "user", "content": question}
+        )
+        with st.chat_message("user"):
+            st.write(question)
+
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                answer = vm.chat(entity_id, question)
+            st.write(answer)
+
+        st.session_state.advisory_chat_history.append(
+            {"role": "assistant", "content": answer}
+        )
+
+
+def render() -> None:
+    st.title("💡 Advisory")
+
+    entities = list_entities()
+    if not entities:
+        st.warning("No active entities found in the database.")
         return
 
-    force_refresh = st.button("Refresh", key="advisory_refresh")
+    options = {e.display_name: e.entity_id for e in entities}
+
+    current_id: str | None = sm.get(SessionKeys.ACTIVE_ENTITY_ID)
+    current_name = next(
+        (name for name, eid in options.items() if eid == current_id),
+        list(options.keys())[0],
+    )
+
+    selected_name = st.selectbox(
+        "Select Entity",
+        options=list(options.keys()),
+        index=list(options.keys()).index(current_name),
+    )
+
+    selected_id = options[selected_name]
+
+    if selected_id != current_id:
+        sm.set(SessionKeys.ACTIVE_ENTITY_ID, selected_id)
+        sm.set(SessionKeys.ADVISORY_CACHE, None)
+        st.rerun()
+
+    entity_id = selected_id
+
+    col_refresh, _ = st.columns([1, 9])
+    with col_refresh:
+        force_refresh = st.button("🔄 Refresh", key="advisory_refresh")
+
+    vm = AdvisoryVM()
     cache = _load_cache(vm, entity_id, force=force_refresh)
 
     if cache.personal is None and cache.proactive is None:
@@ -84,25 +143,19 @@ def render() -> None:
     elif cache.proactive and cache.proactive.items:
         display_name = cache.proactive.items[0].display_name
     else:
-        display_name = "Unknown Entity"
+        display_name = selected_name
 
-    left, right = st.columns([3, 7])
+    st.markdown(f"## {display_name}")
+    st.divider()
 
-    with left:
-        st.markdown(f"## {display_name}")
-        st.caption(
-            f"Locale: {cache.personal.locale if cache.personal else cache.proactive.locale}"
-        )
+    if cache.personal:
+        _render_personal_advisory(cache.personal)
+
+    if cache.personal and cache.proactive:
         st.divider()
-        locales = vm.get_supported_locales()
-        st.radio(
-            "Language", sorted(locales), horizontal=True, label_visibility="collapsed"
-        )
 
-    with right:
-        if cache.personal:
-            _render_personal_advisory(cache.personal)
-        if cache.personal and cache.proactive:
-            st.divider()
-        if cache.proactive:
-            _render_proactive_advisory(cache.proactive)
+    if cache.proactive:
+        _render_proactive_advisory(cache.proactive)
+
+    st.divider()
+    _render_chat(vm, entity_id)

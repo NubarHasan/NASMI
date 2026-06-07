@@ -13,6 +13,7 @@ _PRAGMAS = """\
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 PRAGMA synchronous = NORMAL;
+PRAGMA busy_timeout = 5000;
 """
 
 
@@ -29,6 +30,8 @@ class DatabaseConnection:
                 self._db_path,
                 detect_types=sqlite3.PARSE_DECLTYPES,
                 check_same_thread=False,
+                timeout=30,
+                isolation_level=None,
             )
             conn.row_factory = sqlite3.Row
             conn.executescript(_PRAGMAS)

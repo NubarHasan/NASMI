@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
-from application.services.knowledge_service import KnowledgeApplicationService
-
 from application.adapters.review_case_writer_adapter import ReviewCaseWriterAdapter
+from application.ports.knowledge_unit_of_work import KnowledgeUnitOfWork
 from application.ports.profile_query import ProfileQueryService
+from application.ports.review_unit_of_work import ReviewUnitOfWork
+from application.services.knowledge_service import KnowledgeApplicationService
 from application.services.review_service import ReviewApplicationService
 from core.guards import require
-from infrastructure.db.connection import DatabaseConnection, init_db
+from infrastructure.db.connection import DatabaseConnection
 from infrastructure.db.sqlite_conflict_query import SqliteConflictQuery
 from infrastructure.db.sqlite_evidence_query import SqliteEvidenceQuery
 from infrastructure.db.sqlite_knowledge_query import SqliteKnowledgeQuery
@@ -36,6 +38,7 @@ from infrastructure.output.provenance_report_json_generator import (
 from output.output_generator import OutputGeneratorRegistry
 from output.output_type import OutputType
 from pipeline.handler_registry import HandlerRegistry
+from pipeline.handlers.classification_handler import ClassificationHandler
 from pipeline.handlers.document_import_handler import DocumentImportHandler
 from pipeline.handlers.entity_resolution_handler import EntityResolutionHandler
 from pipeline.handlers.extraction_handler import ExtractionHandler
@@ -67,31 +70,40 @@ class Container:
     def __init__(
         self,
         base_output_dir: Path,
-        db_path: Path,
+        db: DatabaseConnection,
         ocr_engine_registry: OcrEngineRegistry,
         extractor_registry: ExtractorRegistry | None = None,
     ) -> None:
         require(isinstance(base_output_dir, Path), "base_output_dir must be a Path")
         require(bool(str(base_output_dir).strip()), "base_output_dir must not be blank")
-        require(isinstance(db_path, Path), "db_path must be a Path")
-        require(bool(str(db_path).strip()), "db_path must not be blank")
+        require(isinstance(db, DatabaseConnection), "db must be a DatabaseConnection")
         require(
             isinstance(ocr_engine_registry, OcrEngineRegistry),
             "ocr_engine_registry must be an OcrEngineRegistry",
         )
 
         self._base_output_dir = base_output_dir
-
-        self._db: DatabaseConnection = init_db(db_path)
+        self._db: DatabaseConnection = db
 
         self._knowledge_uow = SqliteKnowledgeUnitOfWork(self._db)
         self._review_uow = SqliteReviewUnitOfWork(self._db)
 
+        def _make_knowledge_uow() -> KnowledgeUnitOfWork:
+            return SqliteKnowledgeUnitOfWork(self._db)
+
+        def _make_review_uow() -> ReviewUnitOfWork:
+            return SqliteReviewUnitOfWork(self._db)
+
+        self._knowledge_uow_factory: Callable[[], KnowledgeUnitOfWork] = (
+            _make_knowledge_uow
+        )
+        self._review_uow_factory: Callable[[], ReviewUnitOfWork] = _make_review_uow
+
         self._knowledge_app_service = KnowledgeApplicationService(
-            uow=self._knowledge_uow,
+            uow_factory=self._knowledge_uow_factory,
         )
         self._review_app_service = ReviewApplicationService(
-            uow=self._review_uow,  # type: ignore[arg-type]
+            uow_factory=self._review_uow_factory,
         )
 
         self._knowledge_query = SqliteKnowledgeQuery(self._db)
@@ -178,6 +190,7 @@ class Container:
 
         self._document_import_handler = DocumentImportHandler()
         self._ocr_handler = OcrHandler(ocr_service=self._ocr_service)
+        self._classification_handler = ClassificationHandler()
         self._extraction_handler = ExtractionHandler(
             extraction_service=self._extraction_service,
         )
@@ -202,6 +215,7 @@ class Container:
             handlers={
                 "document_import": self._document_import_handler,
                 "ocr": self._ocr_handler,
+                "classification": self._classification_handler,
                 "extraction": self._extraction_handler,
                 "entity_resolution": self._entity_resolution_handler,
                 "knowledge_build": self._knowledge_build_handler,
@@ -212,8 +226,7 @@ class Container:
         )
 
         _log.info(
-            "Container initialised — db=%r  output_dir=%r",
-            str(db_path),
+            "Container initialised — output_dir=%r",
             str(base_output_dir),
         )
 

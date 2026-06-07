@@ -11,6 +11,7 @@ _log = logging.getLogger(__name__)
 _ORDERED_STAGES = (
     "document_import",
     "ocr",
+    "classification",
     "extraction",
     "entity_resolution",
     "knowledge_build",

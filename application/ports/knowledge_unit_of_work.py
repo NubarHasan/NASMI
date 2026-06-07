@@ -9,6 +9,7 @@ from application.ports.evidence_repository import EvidenceRepository
 from application.ports.fact_evidence_repository import FactEvidenceRepository
 from application.ports.fact_repository import FactRepository
 from application.ports.provenance_repository import ProvenanceRepository
+from application.ports.source_repository import SourceRepository
 
 
 class KnowledgeUnitOfWork(Protocol):
@@ -20,6 +21,7 @@ class KnowledgeUnitOfWork(Protocol):
     conflicts: ConflictRepository
     documents: DocumentRepository
     entities: EntityRepository
+    sources: SourceRepository
 
     def __enter__(self) -> KnowledgeUnitOfWork: ...
 

@@ -82,6 +82,7 @@ class SqliteEntityRepository:
             "metadata": serialize_json(entity.metadata),
         }
         self._conn.execute(sql, params)
+        self._conn.commit()
 
     def get(self, entity_id: EntityId) -> Entity | None:
         sql = "SELECT * FROM entities WHERE entity_id = ?"

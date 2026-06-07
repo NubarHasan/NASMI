@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from forms.autofill_engine import AutofillEngine
 from forms.autofill_preview import AutofillPreview
@@ -10,6 +11,7 @@ from forms.form_submission import FormSubmission, SubmissionEntry
 from forms.form_template import FormTemplate
 from forms.form_type import FieldType, FormKind, SubmissionStatus
 from knowledge.knowledge_fact_type import KnowledgeFactType
+from ui.services.api_client import get_knowledge_query
 
 _FIELD_TO_FACT: dict[str, KnowledgeFactType] = {
     "full_name": KnowledgeFactType.PERSON_FULL_NAME,
@@ -150,6 +152,38 @@ class SubmitResult:
     error: str | None = None
 
 
+def _get_active_entity_id() -> str | None:
+    try:
+        from ui.state import session_manager as sm
+        from ui.state.session_keys import SessionKeys
+
+        val = sm.get(SessionKeys.ACTIVE_ENTITY_ID)
+        return str(val) if val is not None else None
+    except Exception:
+        return None
+
+
+def _load_facts() -> dict[KnowledgeFactType, Any]:
+    try:
+        from core.types import EntityId
+
+        entity_id_str = _get_active_entity_id()
+        if entity_id_str is None:
+            return {}
+        entity_id = EntityId(entity_id_str)
+        facts_list = get_knowledge_query().list_accepted_facts(entity_id)
+        result: dict[KnowledgeFactType, Any] = {}
+        for fact in facts_list:
+            try:
+                fact_type = KnowledgeFactType(fact.field_name)
+                result[fact_type] = fact.canonical_value
+            except ValueError:
+                continue
+        return result
+    except Exception:
+        return {}
+
+
 class FormsVM:
 
     def list_templates(self) -> tuple[TemplateSummary, ...]:
@@ -195,10 +229,11 @@ class FormsVM:
                 template_id=template.template_id,
                 rules=tuple(rules),
             )
+            facts = _load_facts()
             preview = AutofillEngine().run(
                 template=template,
                 mapping=mapping,
-                facts={},
+                facts=facts,
             )
             return AutofillResult(success=True, preview=preview)
         except Exception as exc:

@@ -77,6 +77,16 @@ class SqliteDocumentRepository:
                 issued_at  = excluded.issued_at,
                 expires_at = excluded.expires_at,
                 metadata   = excluded.metadata
+            ON CONFLICT(file_hash) DO UPDATE SET
+                document_id = excluded.document_id,
+                entity_id   = excluded.entity_id,
+                doc_type    = excluded.doc_type,
+                file_path   = excluded.file_path,
+                language    = excluded.language,
+                status      = excluded.status,
+                issued_at   = excluded.issued_at,
+                expires_at  = excluded.expires_at,
+                metadata    = excluded.metadata
         """
         params: dict[str, Any] = {
             "document_id": document.document_id,
@@ -98,9 +108,18 @@ class SqliteDocumentRepository:
         row: sqlite3.Row | None = self._conn.execute(sql, (document_id,)).fetchone()
         return self._row_to_document(row) if row else None
 
+    def get_by_hash(self, file_hash: str) -> Document | None:
+        sql = "SELECT * FROM documents WHERE file_hash = ?"
+        row: sqlite3.Row | None = self._conn.execute(sql, (file_hash,)).fetchone()
+        return self._row_to_document(row) if row else None
+
     def exists(self, document_id: DocumentId) -> bool:
         sql = "SELECT 1 FROM documents WHERE document_id = ? LIMIT 1"
         return self._conn.execute(sql, (document_id,)).fetchone() is not None
+
+    def exists_by_hash(self, file_hash: str) -> bool:
+        sql = "SELECT 1 FROM documents WHERE file_hash = ? LIMIT 1"
+        return self._conn.execute(sql, (file_hash,)).fetchone() is not None
 
     def list_by_entity(self, entity_id: EntityId) -> tuple[Document, ...]:
         sql = "SELECT * FROM documents WHERE entity_id = ? ORDER BY created_at"

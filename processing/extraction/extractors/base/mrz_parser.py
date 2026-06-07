@@ -307,23 +307,30 @@ def normalize(lines: list[str], mrz_type: MRZType) -> tuple[str, ...]:
 
 
 def extract_mrz_lines(text: str) -> list[str]:
-    candidates: list[str] = []
-    for ln in text.splitlines():
-        clean = re.sub(r"\s+", "", ln.upper().strip())
-        if _MRZ_LINE_PATTERN.fullmatch(clean):
-            candidates.append(clean)
-    if len(candidates) >= 2:
-        return candidates
+    strict: list[str] = []
     relaxed: list[str] = []
+
     for ln in text.splitlines():
-        clean = re.sub(r"\s+", "", ln.upper().strip())
-        if (
+        clean = re.sub(r"\s+", "", ln.strip()).upper()
+        clean = clean.replace(".", "").replace(",", "").replace(";", "")
+
+        if not clean:
+            continue
+
+        if _MRZ_LINE_PATTERN.fullmatch(clean):
+            strict.append(clean)
+        elif (
             len(clean) >= 25
-            and re.search(r"[A-Z<]{3,}", clean)
+            and re.search(r"[A-Z0-9]{3,}", clean)
             and _filler_density(clean) >= _MIN_FILLER_DENSITY
         ):
             relaxed.append(clean)
-    return relaxed if len(relaxed) >= 2 else []
+
+    if len(strict) >= 2:
+        return strict
+
+    combined = strict + [ln for ln in relaxed if ln not in strict]
+    return combined if len(combined) >= 2 else []
 
 
 def validate_check_digits(result: MrzParseResult) -> tuple[MrzCheckResult, ...]:

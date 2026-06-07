@@ -1,84 +1,74 @@
 from __future__ import annotations
 
+from core.types import EntityId
+from knowledge.fact import FactStatus
+from ui.services.api_client import get_knowledge_query, get_profile_query
 from ui.viewmodels.profile_models import (
     FactSource,
-    FactStatus,
     ProfileFact,
     ProfileSnapshot,
 )
-
-_MOCK_PROFILE = ProfileSnapshot(
-    entity_id="entity-001",
-    entity_name="Nubar Hasan",
-    confidence=0.91,
-    facts=(
-        ProfileFact(
-            fact_id="fact-001",
-            field="full_name",
-            value="Nubar Hasan",
-            status=FactStatus.CONFIRMED,
-            sources=(
-                FactSource("doc-001", "passport", "Name: Nubar Hasan", 0.97),
-                FactSource(
-                    "doc-002", "residence_permit", "Full Name: Nubar Hasan", 0.93
-                ),
-            ),
-        ),
-        ProfileFact(
-            fact_id="fact-002",
-            field="date_of_birth",
-            value="1990-03-22",
-            status=FactStatus.CONFIRMED,
-            sources=(FactSource("doc-001", "passport", "DOB: 1990-03-22", 0.97),),
-        ),
-        ProfileFact(
-            fact_id="fact-003",
-            field="employer",
-            value="TechCorp GmbH",
-            status=FactStatus.UNVERIFIED,
-            sources=(
-                FactSource(
-                    "doc-003", "employment_contract", "Employer: TechCorp GmbH", 0.88
-                ),
-            ),
-        ),
-        ProfileFact(
-            fact_id="fact-004",
-            field="residence_permit_expiry",
-            value="2027-11-19",
-            status=FactStatus.CONFLICTED,
-            sources=(
-                FactSource(
-                    "doc-002", "residence_permit", "Valid Until: 2027-11-19", 0.93
-                ),
-                FactSource(
-                    "doc-002", "immigration_registry", "Expiry Date: 2027-12-01", 0.85
-                ),
-            ),
-        ),
-        ProfileFact(
-            fact_id="fact-005",
-            field="monthly_income",
-            value="4200 EUR",
-            status=FactStatus.UNVERIFIED,
-            sources=(
-                FactSource("doc-005", "payslip", "Net Pay: 4200 EUR", None),
-                FactSource("doc-004", "bank_statement", "Credit: 4200.00", 0.81),
-            ),
-        ),
-    ),
+from ui.viewmodels.profile_models import (
+    FactStatus as UIFactStatus,
 )
 
 
+def _map_fact_status(domain_status: FactStatus) -> UIFactStatus:
+    mapping: dict[FactStatus, UIFactStatus] = {
+        FactStatus.ACCEPTED: UIFactStatus.CONFIRMED,
+        FactStatus.PENDING: UIFactStatus.UNVERIFIED,
+        FactStatus.REJECTED: UIFactStatus.UNVERIFIED,
+        FactStatus.SUPERSEDED: UIFactStatus.UNVERIFIED,
+    }
+    return mapping.get(domain_status, UIFactStatus.UNVERIFIED)
+
+
 def _count_conflicts(snapshot: ProfileSnapshot) -> int:
-    return sum(1 for f in snapshot.facts if f.status is FactStatus.CONFLICTED)
+    return sum(1 for f in snapshot.facts if f.status is UIFactStatus.CONFLICTED)
 
 
 class ProfileVM:
+
     def load_profile(self, entity_id: str) -> ProfileSnapshot | None:
-        if entity_id == _MOCK_PROFILE.entity_id:
-            return _MOCK_PROFILE
-        return None
+        try:
+            eid = EntityId(entity_id)
+            profile = get_profile_query().get_profile(eid)
+            display_name = profile.display_name if profile else entity_id
+            completeness = float(profile.completeness) if profile else 0.0
+
+            facts = get_knowledge_query().list_accepted_facts(eid)
+            if not facts and profile is None:
+                return None
+
+            ui_facts = tuple(
+                ProfileFact(
+                    fact_id=str(f.fact_id),
+                    field=f.field_name,
+                    value=f.display_value or str(f.canonical_value),
+                    status=_map_fact_status(f.status),
+                    sources=(
+                        FactSource(
+                            document_id=str(f.metadata.get("source_document_id", "")),
+                            document_type=str(
+                                f.metadata.get("source_type", f.source_stage)
+                            ),
+                            excerpt=str(f.metadata.get("excerpt", "")),
+                            confidence=f.confidence,
+                        ),
+                    ),
+                )
+                for f in facts
+            )
+
+            return ProfileSnapshot(
+                entity_id=entity_id,
+                entity_name=display_name,
+                confidence=completeness,
+                facts=ui_facts,
+            )
+
+        except Exception:
+            return None
 
     def refresh_profile(self, entity_id: str) -> ProfileSnapshot | None:
         return self.load_profile(entity_id)

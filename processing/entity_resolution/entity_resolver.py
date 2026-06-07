@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from core.guards import require
 from core.identifiers import generate_entity_id
 from core.types import CandidateFactId, EntityId
-from processing.candidate_fact import CandidateFact
+from processing.extraction.candidate_fact import CandidateFact
 from processing.entity_resolution.entity_match import (
     EntityMatch,
     EntityMatchBundle,
@@ -320,3 +320,4 @@ class EntityResolver:
             conflict_fact_types=conflict_types,
             resolution_confidence=overall,
         )
+

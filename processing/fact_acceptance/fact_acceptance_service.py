@@ -6,8 +6,8 @@ from typing import Final
 from application.ports.review_case_writer import ReviewCaseWriter
 from application.services.knowledge_service import KnowledgeApplicationService
 from core.guards import require
-from core.identifiers import is_valid_entity_id
-from core.types import CandidateFactId, EntityId
+from core.identifiers import generate_candidate_fact_id, is_valid_entity_id
+from core.types import EntityId
 from knowledge.conflict import Conflict
 from knowledge.fact import Fact, FactStatus
 from processing.fact_acceptance.fact_acceptance_result import FactAcceptanceResult
@@ -50,9 +50,9 @@ class FactAcceptanceService:
         require(is_valid_entity_id(entity_id), "invalid entity_id")
 
         pending_facts = tuple(
-            f
-            for f in self._knowledge.list_facts_by_entity(entity_id)
-            if f.status == FactStatus.PENDING
+            fact
+            for fact in self._knowledge.list_facts_by_entity(entity_id)
+            if fact.status == FactStatus.PENDING
         )
 
         require(
@@ -71,6 +71,7 @@ class FactAcceptanceService:
                     fact_id=fact.fact_id,
                     accepted_by=_SYSTEM_ACTOR,
                 )
+
                 if isinstance(outcome, Fact):
                     if outcome.status == FactStatus.ACCEPTED:
                         accepted.append(outcome)
@@ -78,28 +79,30 @@ class FactAcceptanceService:
                         rejected.append(outcome)
                 elif isinstance(outcome, Conflict):
                     conflicts.append(outcome)
-            else:
-                evidence_ids = self._knowledge.list_evidence_ids(fact.fact_id)
-                if not evidence_ids:
-                    _log.warning(
-                        "skipping review — no evidence for fact=%s field=%s",
-                        fact.fact_id,
-                        fact.field_name,
-                    )
-                    rejected.append(fact)
-                    continue
 
-                case = self._review.open_case(
-                    entity_id=fact.entity_id,
-                    candidate_fact_id=CandidateFactId(str(fact.fact_id)),
-                    fact_type=fact.field_name,
-                    raw_value=fact.display_value,
-                    normalized_value=fact.display_value,
-                    confidence=fact.confidence,
-                    evidence_ids=evidence_ids,
-                    priority=_resolve_priority(fact.confidence),
+                continue
+
+            evidence_ids = self._knowledge.list_evidence_ids(fact.fact_id)
+            if not evidence_ids:
+                _log.warning(
+                    "skipping review — no evidence for fact=%s field=%s",
+                    fact.fact_id,
+                    fact.field_name,
                 )
-                review_cases.append(case)
+                rejected.append(fact)
+                continue
+
+            case = self._review.open_case(
+                entity_id=fact.entity_id,
+                candidate_fact_id=generate_candidate_fact_id(),
+                fact_type=fact.field_name,
+                raw_value=fact.display_value,
+                normalized_value=fact.display_value,
+                confidence=fact.confidence,
+                evidence_ids=tuple(evidence_ids),
+                priority=_resolve_priority(fact.confidence),
+            )
+            review_cases.append(case)
 
         return FactAcceptanceResult.create(
             entity_id=entity_id,

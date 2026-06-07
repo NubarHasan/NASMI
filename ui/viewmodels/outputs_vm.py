@@ -1,44 +1,73 @@
 from __future__ import annotations
 
+from core.types import EntityId
+from output.output_document import OutputDocument
 from output.output_format import OutputFormat
-from output.output_ids import OutputDocumentId, generate_output_document_id
+from output.output_ids import OutputDocumentId
 from output.output_template import OUTPUT_TEMPLATES
 from output.output_type import OutputType
+from pipeline.job import Job, JobPriority, JobType
+from ui.services.api_client import _get_container, _get_db
 from ui.viewmodels.output_models import GenerateResult, OutputDetail, OutputSummary
+
+
+def _active_entity_id() -> str | None:
+    try:
+        from ui.state import session_manager as sm
+        from ui.state.session_keys import SessionKeys
+
+        val = sm.get(SessionKeys.ACTIVE_ENTITY_ID)
+        return str(val) if val is not None else None
+    except Exception:
+        return None
+
 
 _SUPPORTED_TYPES: tuple[OutputType, ...] = tuple(
     sorted(OUTPUT_TEMPLATES.keys(), key=lambda t: t.value)
 )
 
-_INITIAL_OUTPUTS: tuple[OutputSummary, ...] = (
-    OutputSummary(
-        output_id=OutputDocumentId("odoc_00000000000000000000000000000001"),
-        label=OUTPUT_TEMPLATES[OutputType.PROFILE_REPORT].label,
-        output_type=OutputType.PROFILE_REPORT,
-        output_format=OutputFormat.JSON,
-        succeeded=True,
-    ),
-    OutputSummary(
-        output_id=OutputDocumentId("odoc_00000000000000000000000000000002"),
-        label=OUTPUT_TEMPLATES[OutputType.FACT_EXPORT].label,
-        output_type=OutputType.FACT_EXPORT,
-        output_format=OutputFormat.JSON,
-        succeeded=True,
-    ),
-    OutputSummary(
-        output_id=OutputDocumentId("odoc_00000000000000000000000000000003"),
-        label=OUTPUT_TEMPLATES[OutputType.CONFLICT_REPORT].label,
-        output_type=OutputType.CONFLICT_REPORT,
-        output_format=OutputFormat.JSON,
-        succeeded=False,
-    ),
-)
+
+def _row_to_summary(row: object) -> OutputSummary:
+    from pathlib import Path
+
+    output_type = OutputType(row["output_type"])  # type: ignore[index]
+    output_format = OutputFormat(row["output_format"])  # type: ignore[index]
+    file_path = Path(row["file_path"])  # type: ignore[index]
+    template = OUTPUT_TEMPLATES.get(output_type)
+    label = template.label if template else str(output_type.value)
+    return OutputSummary(
+        output_id=OutputDocumentId(row["output_document_id"]),  # type: ignore[index]
+        label=label,
+        output_type=output_type,
+        output_format=output_format,
+        succeeded=file_path.exists(),
+    )
+
+
+def _load_outputs(entity_id: str) -> tuple[OutputSummary, ...]:
+    try:
+        rows = (
+            _get_db()
+            .connection.execute(
+                "SELECT output_document_id, subject_id, output_type, output_format, "
+                "file_path FROM output_documents WHERE subject_id = ? "
+                "ORDER BY generated_at DESC",
+                (entity_id,),
+            )
+            .fetchall()
+        )
+        return tuple(_row_to_summary(r) for r in rows)
+    except Exception:
+        return ()
 
 
 class OutputsVM:
 
     def initial_outputs(self) -> tuple[OutputSummary, ...]:
-        return _INITIAL_OUTPUTS
+        entity_id = _active_entity_id()
+        if entity_id is None:
+            return ()
+        return _load_outputs(entity_id)
 
     def supported_types(self) -> tuple[OutputType, ...]:
         return _SUPPORTED_TYPES
@@ -86,26 +115,35 @@ class OutputsVM:
                 current_outputs,
             )
 
-        new_id = generate_output_document_id()
-        label = self.label_for(output_type)
+        entity_id = _active_entity_id()
+        if entity_id is None:
+            return (
+                GenerateResult(success=False, error="No active entity selected."),
+                current_outputs,
+            )
 
-        new_summary = OutputSummary(
-            output_id=new_id,
-            label=label,
-            output_type=output_type,
-            output_format=output_format,
-            succeeded=True,
-        )
+        try:
+            job = Job.create(
+                job_type=JobType.OUTPUT_BUILD,
+                payload={
+                    "entity_id": entity_id,
+                    "output_type": output_type.value,
+                    "output_format": output_format.value,
+                },
+                priority=JobPriority.NORMAL,
+            )
+            _get_container().output_build_handler.handle(job)
 
-        detail = OutputDetail(
-            output_id=new_id,
-            label=label,
-            output_type=output_type,
-            output_format=output_format,
-            succeeded=True,
-            file_path=f"outputs/{new_id}.json",
-        )
+            refreshed = _load_outputs(entity_id)
+            new_entry = next((s for s in refreshed if s not in current_outputs), None)
+            if new_entry:
+                detail = self.get_detail(new_entry.output_id, refreshed)
+                return GenerateResult(success=True, detail=detail), refreshed
 
-        return GenerateResult(success=True, detail=detail), current_outputs + (
-            new_summary,
-        )
+            return GenerateResult(success=True), refreshed
+
+        except Exception as exc:
+            return (
+                GenerateResult(success=False, error=str(exc)),
+                current_outputs,
+            )

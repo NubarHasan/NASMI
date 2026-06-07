@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from audit.audit_chain import AuditChain
-from audit.audit_entry import AuditEntry, AuditEventType
+from audit.audit_entry import AuditEntry
 from audit.audit_verifier import AuditVerifier
 from audit.integrity_result import IntegrityViolation
 from audit.verification_result import VerificationResult
-from core.identifiers import generate_entity_id, generate_job_id
-from core.types import EntityId, JobId
+from core.types import EntityId
+from ui.services.api_client import get_audit_query
 from ui.viewmodels.audit_models import (
     AuditEntryDetail,
     AuditEntrySummary,
@@ -14,91 +14,19 @@ from ui.viewmodels.audit_models import (
     ViolationSummary,
 )
 
-_MOCK_SECRET: bytes = b"nasmi_mock_audit_secret_key_32b!"
-
-_MOCK_ENTITY_ID: EntityId = generate_entity_id()
-_MOCK_JOB_ID: JobId = generate_job_id()
+_SECRET_KEY: bytes = b"nasmi_mock_audit_secret_key_32b!"
+_VERIFIER: AuditVerifier = AuditVerifier(_SECRET_KEY)
 
 
-def _build_mock_chain() -> AuditChain:
-    e1 = AuditEntry.create(
-        secret_key=_MOCK_SECRET,
-        event_type=AuditEventType.DOCUMENT_IMPORTED,
-        subject_id=_MOCK_ENTITY_ID,
-        message="Document imported into the system",
-        actor="system",
-        metadata={"source": "upload", "pages": 12},
-    )
-    e2 = AuditEntry.create(
-        secret_key=_MOCK_SECRET,
-        event_type=AuditEventType.OCR_COMPLETED,
-        subject_id=_MOCK_ENTITY_ID,
-        message="OCR processing completed successfully",
-        actor="ocr_engine",
-        metadata={"confidence": 0.97, "language": "ar"},
-        previous_hash=e1.entry_hash,
-    )
-    e3 = AuditEntry.create(
-        secret_key=_MOCK_SECRET,
-        event_type=AuditEventType.JOB_CREATED,
-        job_id=_MOCK_JOB_ID,
-        subject_id=_MOCK_ENTITY_ID,
-        message="Extraction job created",
-        actor="scheduler",
-        metadata={"priority": "high"},
-        previous_hash=e2.entry_hash,
-    )
-    e4 = AuditEntry.create(
-        secret_key=_MOCK_SECRET,
-        event_type=AuditEventType.JOB_STARTED,
-        job_id=_MOCK_JOB_ID,
-        subject_id=_MOCK_ENTITY_ID,
-        message="Extraction job started",
-        actor="worker",
-        previous_hash=e3.entry_hash,
-    )
-    e5 = AuditEntry.create(
-        secret_key=_MOCK_SECRET,
-        event_type=AuditEventType.ENTITY_CREATED,
-        subject_id=_MOCK_ENTITY_ID,
-        message="Entity record created from extraction results",
-        actor="extractor",
-        metadata={"entity_type": "person", "fields_extracted": 8},
-        previous_hash=e4.entry_hash,
-    )
-    e6 = AuditEntry.create(
-        secret_key=_MOCK_SECRET,
-        event_type=AuditEventType.VALIDATION_PASSED,
-        subject_id=_MOCK_ENTITY_ID,
-        message="Entity passed all validation rules",
-        actor="validator",
-        metadata={"rules_checked": 14},
-        previous_hash=e5.entry_hash,
-    )
-    e7 = AuditEntry.create(
-        secret_key=_MOCK_SECRET,
-        event_type=AuditEventType.PACKAGE_GENERATED,
-        job_id=_MOCK_JOB_ID,
-        subject_id=_MOCK_ENTITY_ID,
-        message="Output package generated",
-        actor="packager",
-        metadata={"format": "pdf", "size_kb": 340},
-        previous_hash=e6.entry_hash,
-    )
-    e8 = AuditEntry.create(
-        secret_key=_MOCK_SECRET,
-        event_type=AuditEventType.INTEGRITY_VERIFIED,
-        subject_id=_MOCK_ENTITY_ID,
-        message="Chain integrity verified",
-        actor="verifier",
-        metadata={"verified_entries": 7},
-        previous_hash=e7.entry_hash,
-    )
-    return AuditChain.from_entries((e1, e2, e3, e4, e5, e6, e7, e8))
+def _active_entity_id() -> EntityId | None:
+    try:
+        from ui.state import session_manager as sm
+        from ui.state.session_keys import SessionKeys
 
-
-_MOCK_CHAIN: AuditChain = _build_mock_chain()
-_MOCK_VERIFIER: AuditVerifier = AuditVerifier(_MOCK_SECRET)
+        val = sm.get(SessionKeys.ACTIVE_ENTITY_ID)
+        return EntityId(str(val)) if val is not None else None
+    except Exception:
+        return None
 
 
 def _to_summary(entry: AuditEntry) -> AuditEntrySummary:
@@ -147,11 +75,21 @@ def _to_verification_summary(result: VerificationResult) -> AuditVerificationSum
 
 
 class AuditVM:
+
     def load_chain(self) -> AuditChain:
-        return _MOCK_CHAIN
+        try:
+            entity_id = _active_entity_id()
+            if entity_id is None:
+                return AuditChain.empty()
+            return get_audit_query().get_chain(entity_id)
+        except Exception:
+            return AuditChain.empty()
 
     def verify_chain(self, chain: AuditChain) -> VerificationResult:
-        return _MOCK_VERIFIER.verify(chain)
+        try:
+            return _VERIFIER.verify(chain)
+        except Exception:
+            return _VERIFIER.verify(AuditChain.empty())
 
     def refresh(self) -> tuple[AuditChain, VerificationResult]:
         chain = self.load_chain()

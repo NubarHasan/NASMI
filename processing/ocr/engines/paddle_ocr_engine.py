@@ -173,6 +173,10 @@ def _build_page(
     if not ocr_lines:
         return None
 
+    for line in ocr_lines:
+        print(f"[DEBUG-MRZ] line.text            = {line.text!r}")
+        print(f"[DEBUG-MRZ] line.reconstructed   = {line.reconstructed_text!r}")
+
     xs = [line.bounding_box.x for line in ocr_lines]
     ys = [line.bounding_box.y for line in ocr_lines]
     x2s = [line.bounding_box.x2 for line in ocr_lines]
@@ -184,7 +188,7 @@ def _build_page(
         height=max(y2s) - min(ys),
     )
     block_conf = round(sum(line.confidence for line in ocr_lines) / len(ocr_lines), 4)
-    block_text = "\n".join(line.reconstructed_text for line in ocr_lines)
+    block_text = "\n".join(line.text for line in ocr_lines)
 
     block = OcrBlock.create(
         text=block_text,

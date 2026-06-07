@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import streamlit as st
 
+from ui.services.api_client import get_health
 from ui.state.page_id import PageId
 from ui.state.session_keys import SessionKeys
-from ui.state.session_manager import get, set
+from ui.state.session_manager import set
 
 _CARDS: list[tuple[str, str, str, PageId]] = [
     (
@@ -36,13 +39,6 @@ _CARDS: list[tuple[str, str, str, PageId]] = [
         "Trace and verify the full audit chain of all operations.",
         PageId.AUDIT,
     ),
-]
-
-_STATUS_ITEMS: list[tuple[str, str, str]] = [
-    ("🔌", "Backend", "Not Connected"),
-    ("🤖", "LLM", "Not Loaded"),
-    ("📥", "Review Queue", "Unknown"),
-    ("🗄️", "Knowledge Vault", "Unknown"),
 ]
 
 _CSS = """
@@ -86,7 +82,15 @@ _CSS = """
     font-size: 0.88rem;
 }
 .status-label { color: #94a3b8; flex: 1; }
-.status-badge {
+.status-badge-ok  {
+    background: #14532d;
+    color: #86efac;
+    padding: 0.15rem 0.7rem;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+.status-badge-err {
     background: #1e293b;
     color: #f87171;
     padding: 0.15rem 0.7rem;
@@ -101,6 +105,16 @@ _CSS = """
 def _navigate(page: PageId) -> None:
     set(SessionKeys.CURRENT_PAGE, page)
     st.rerun()
+
+
+def _status_row(icon: str, label: str, value: str, ok: bool) -> str:
+    badge_class = "status-badge-ok" if ok else "status-badge-err"
+    return f"""
+    <div class="status-row">
+        <span>{icon}</span>
+        <span class="status-label">{label}</span>
+        <span class="{badge_class}">{value}</span>
+    </div>"""
 
 
 def render() -> None:
@@ -119,37 +133,59 @@ def render() -> None:
 
     cols = st.columns(len(_CARDS))
     for col, (icon, title, desc, page_id) in zip(cols, _CARDS, strict=True):
-        with col:
-            with st.container(border=True):
-                st.markdown(
-                    f'<div class="card-icon">{icon}</div>', unsafe_allow_html=True
-                )
-                st.markdown(
-                    f'<div class="card-title">{title}</div>', unsafe_allow_html=True
-                )
-                st.markdown(
-                    f'<div class="card-desc">{desc}</div>', unsafe_allow_html=True
-                )
-                if st.button(
-                    "Open →",
-                    key=f"home_open_{page_id}",
-                    type="primary",
-                    use_container_width=True,
-                ):
-                    _navigate(page_id)
+        with col, st.container(border=True):
+            st.markdown(f'<div class="card-icon">{icon}</div>', unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="card-title">{title}</div>', unsafe_allow_html=True
+            )
+            st.markdown(f'<div class="card-desc">{desc}</div>', unsafe_allow_html=True)
+            if st.button(
+                "Open →",
+                key=f"home_open_{page_id}",
+                type="primary",
+                use_container_width=True,
+            ):
+                _navigate(page_id)
 
     st.divider()
+
+    health = get_health()
 
     left, _ = st.columns([1, 2])
     with left:
         st.markdown("### 🖥️ System Status")
-        for icon, label, value in _STATUS_ITEMS:
-            st.markdown(
-                f"""
-            <div class="status-row">
-                <span>{icon}</span>
-                <span class="status-label">{label}</span>
-                <span class="status-badge">{value}</span>
-            </div>""",
-                unsafe_allow_html=True,
-            )
+
+        rows = "".join(
+            [
+                _status_row(
+                    "🔌",
+                    "Backend",
+                    "Connected" if health.db_ok else "Not Connected",
+                    health.db_ok,
+                ),
+                _status_row(
+                    "📥",
+                    "Review Queue",
+                    (
+                        f"{health.review_queue_count} pending"
+                        if health.db_ok
+                        else "Unknown"
+                    ),
+                    health.db_ok,
+                ),
+                _status_row(
+                    "🗄️",
+                    "Knowledge Vault",
+                    (
+                        f"{health.knowledge_facts_count} facts"
+                        if health.db_ok
+                        else "Unknown"
+                    ),
+                    health.db_ok,
+                ),
+            ]
+        )
+        st.markdown(rows, unsafe_allow_html=True)
+
+        if health.error:
+            st.caption(f"⚠️ {health.error}")

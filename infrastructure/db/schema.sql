@@ -272,6 +272,19 @@ CREATE TABLE IF NOT EXISTS form_submissions (
     submitted_at TEXT,
     metadata TEXT NOT NULL DEFAULT '{}'
 );
+CREATE TABLE IF NOT EXISTS profiles (
+    profile_id TEXT PRIMARY KEY,
+    entity_id TEXT NOT NULL REFERENCES entities(entity_id),
+    entity_type TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    fields TEXT NOT NULL DEFAULT '{}',
+    completeness REAL NOT NULL DEFAULT 0.0 CHECK (
+        completeness >= 0.0
+        AND completeness <= 1.0
+    ),
+    computed_at TEXT NOT NULL,
+    metadata TEXT NOT NULL DEFAULT '{}'
+);
 CREATE INDEX IF NOT EXISTS idx_form_mappings_template_id ON form_mappings(template_id);
 CREATE INDEX IF NOT EXISTS idx_form_submissions_template_id ON form_submissions(template_id);
 CREATE INDEX IF NOT EXISTS idx_form_submissions_status ON form_submissions(status);
@@ -305,3 +318,4 @@ CREATE INDEX IF NOT EXISTS idx_output_documents_subject ON output_documents(subj
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_updated_at ON jobs(updated_at);
 CREATE INDEX IF NOT EXISTS idx_form_submissions_template ON form_submissions(template_id);
+CREATE INDEX IF NOT EXISTS idx_profiles_entity_id ON profiles(entity_id);

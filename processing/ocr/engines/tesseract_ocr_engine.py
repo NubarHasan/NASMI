@@ -19,15 +19,35 @@ from processing.ocr.ocr_result import OcrResult
 from processing.ocr.ocr_word import OcrWord
 
 _ENGINE_NAME = "tesseract"
-_ENGINE_VERSION: str | None = str(pytesseract.get_tesseract_version().vstring)
+_ENGINE_VERSION: str | None = str(pytesseract.get_tesseract_version())
 _DPI = 300
 _CONF_SCALE = 100.0
 _DEFAULT_LANG = "eng"
 
+_LANG_MAP: dict[str, str] = {
+    "en": "eng",
+    "de": "deu",
+    "fr": "fra",
+    "es": "spa",
+    "ar": "ara",
+    "zh": "chi_sim",
+    "ja": "jpn",
+    "ko": "kor",
+    "pt": "por",
+    "it": "ita",
+    "ru": "rus",
+    "nl": "nld",
+    "tr": "tur",
+}
+
+
+def _normalize_lang(lang: str) -> str:
+    return _LANG_MAP.get(lang.lower().strip(), lang.strip())
+
 
 def _lang_string(request: OcrRequest) -> str:
     if request.languages:
-        return str(request.languages[0])
+        return _normalize_lang(request.languages[0])
     return _DEFAULT_LANG
 
 

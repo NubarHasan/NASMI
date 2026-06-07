@@ -47,11 +47,11 @@ class KnowledgeBuildService:
         )
 
         self._knowledge_service.persist_knowledge_build(
-            evidence_list=result.evidence,
-            facts=result.facts,
-            links=result.fact_evidence_links,
-            provenances=result.provenance_records,
-            conflicts=result.conflicts,
+            facts=list(result.facts),
+            evidence_list=list(result.evidence),
+            fact_evidence_links=list(result.fact_evidence_links),
+            provenance_list=list(result.provenance_records),
+            conflicts=list(result.conflicts),
         )
 
         _logger.debug(

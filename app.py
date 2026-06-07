@@ -1,7 +1,9 @@
 from collections.abc import Callable
+from pathlib import Path
 
 import streamlit as st
 
+from infrastructure.db.connection import init_db
 from ui.layout.page_container import render_page_container
 from ui.layout.topbar import render_topbar
 from ui.pages.advisory import render as render_advisory
@@ -35,6 +37,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+init_db(Path("data/nasmi.db"))
 init_session()
 render_topbar()
 
