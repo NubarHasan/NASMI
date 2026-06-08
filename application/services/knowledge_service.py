@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -61,7 +62,9 @@ class KnowledgeApplicationService:
                 provenance
                 for provenance in provenance_list
                 if self._belongs_to_kept_fact(
-                    provenance, kept_fact_ids, skipped_fact_ids
+                    provenance,
+                    kept_fact_ids,
+                    skipped_fact_ids,
                 )
             ]
 
@@ -96,6 +99,7 @@ class KnowledgeApplicationService:
         facts: list[Fact],
     ) -> set[tuple[str, str, str]]:
         keys: set[tuple[str, str, str]] = set()
+
         entity_ids = {
             EntityId(str(self._get_attr(fact, "entity_id")))
             for fact in facts
@@ -149,17 +153,106 @@ class KnowledgeApplicationService:
         if entity_id is None or field_name is None or canonical_value is None:
             return None
 
-        normalized_value = self._normalize_key_value(str(canonical_value))
-        normalized_field = str(field_name).strip().lower()
         normalized_entity = str(entity_id).strip()
+        normalized_field = self._normalize_field_name_for_dedup(str(field_name))
+        normalized_value = self._normalize_value_for_dedup(
+            value=str(canonical_value),
+            field_name=normalized_field,
+        )
 
         if not normalized_entity or not normalized_field or not normalized_value:
             return None
 
         return normalized_entity, normalized_field, normalized_value
 
-    def _normalize_key_value(self, value: str) -> str:
-        return " ".join(value.strip().lower().split())
+    def _normalize_field_name_for_dedup(self, field_name: str) -> str:
+        field = " ".join(str(field_name).strip().lower().split())
+
+        aliases = {
+            "date": "date_of_birth",
+            "birth_date": "date_of_birth",
+            "date_birth": "date_of_birth",
+            "dob": "date_of_birth",
+            "date_of_birth": "date_of_birth",
+            "expiry": "expiry_date",
+            "expiry_date": "expiry_date",
+            "expiration_date": "expiry_date",
+            "valid_until": "expiry_date",
+            "valid_to": "expiry_date",
+            "issue": "issue_date",
+            "issued_date": "issue_date",
+            "date_of_issue": "issue_date",
+            "issue_date": "issue_date",
+            "given_name": "given_names",
+            "given_names": "given_names",
+            "first_name": "given_names",
+            "firstname": "given_names",
+            "forename": "given_names",
+            "surname": "surname",
+            "last_name": "surname",
+            "lastname": "surname",
+            "family_name": "surname",
+            "email_address": "email",
+            "e-mail": "email",
+            "mail": "email",
+            "phone": "phone_number",
+            "phone_number": "phone_number",
+            "telephone": "phone_number",
+            "mobile": "phone_number",
+            "mobile_number": "phone_number",
+        }
+
+        return aliases.get(field, field)
+
+    def _normalize_value_for_dedup(self, value: str, field_name: str) -> str:
+        text = " ".join(str(value).strip().lower().split())
+
+        if field_name in {"phone_number"}:
+            return self._normalize_phone_value(text)
+
+        if field_name in {"email"}:
+            return text.replace(" ", "")
+
+        if field_name in {"date_of_birth", "issue_date", "expiry_date", "date"}:
+            return self._normalize_date_value(text)
+
+        return text
+
+    def _normalize_phone_value(self, value: str) -> str:
+        text = str(value).strip()
+        if text.startswith("+"):
+            return "+" + re.sub(r"\D", "", text[1:])
+        return re.sub(r"\D", "", text)
+
+    def _normalize_date_value(self, value: str) -> str:
+        text = str(value).strip().lower()
+        match = re.match(r"^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$", text)
+        if match:
+            day, month, year = match.groups()
+            if len(year) == 2:
+                year = "19" + year if int(year) > 30 else "20" + year
+            return f"{year.zfill(4)}-{month.zfill(2)}-{day.zfill(2)}"
+
+        match = re.match(r"^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$", text)
+        if match:
+            year, month, day = match.groups()
+            return f"{year.zfill(4)}-{month.zfill(2)}-{day.zfill(2)}"
+
+        digits = re.sub(r"\D", "", text)
+
+        if len(digits) == 8:
+            if digits[:4].isdigit() and 1900 <= int(digits[:4]) <= 2100:
+                return f"{digits[:4]}-{digits[4:6]}-{digits[6:8]}"
+            return f"{digits[4:8]}-{digits[2:4]}-{digits[0:2]}"
+
+        if len(digits) == 6:
+            day = digits[0:2]
+            month = digits[2:4]
+            year = digits[4:6]
+            full_year = "19" + year if int(year) > 30 else "20" + year
+            return f"{full_year}-{month}-{day}"
+
+        return text
 
     def _belongs_to_kept_fact(
         self,

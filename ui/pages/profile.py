@@ -491,6 +491,56 @@ def _render_field_editor(vm: ProfileVM, fields: tuple[ProfileFieldRow, ...]) -> 
                         st.error(result.error)
 
 
+def _render_connected_entities(vm: ProfileVM, entity_id: str | None) -> None:
+    st.subheader("Connected Entities")
+
+    if not entity_id:
+        st.warning("Select or create an entity first.")
+        return
+
+    connected = vm.list_connected_entities(entity_id)
+
+    if not connected:
+        st.info("No connected entities yet.")
+        return
+
+    st.caption("Entities linked to the active entity through accepted reviewed knowledge.")
+
+    for item in connected:
+        with st.expander(
+            f"{item.entity_name} · {item.entity_type} · {item.relation_type}",
+            expanded=True,
+        ):
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.metric("Entity Type", item.entity_type)
+
+            with col2:
+                st.metric("Relation", item.relation_type)
+
+            with col3:
+                confidence = "n/a" if item.confidence is None else f"{item.confidence:.2f}"
+                st.metric("Confidence", confidence)
+
+            st.caption(f"Entity ID: {item.entity_id}")
+
+            if not item.facts:
+                st.info("No accepted facts for this connected entity.")
+                continue
+
+            rows = [
+                {
+                    "field_name": fact.field_name,
+                    "value": fact.value,
+                    "confidence": fact.confidence,
+                }
+                for fact in item.facts
+            ]
+
+            st.dataframe(rows, use_container_width=True)
+
+
 def _render_profile_json(fields: tuple[ProfileFieldRow, ...]) -> None:
     st.subheader("Profile Data")
 
@@ -528,13 +578,14 @@ def _render_trusted_profile() -> None:
     if snapshot is not None:
         st.caption(f"Entity: {snapshot.entity_name} · ID: {snapshot.entity_id}")
 
-    tab_overview, tab_build, tab_missing, tab_sections, tab_edit, tab_add, tab_data = (
+    tab_overview, tab_build, tab_missing, tab_sections, tab_connected, tab_edit, tab_add, tab_data = (
         st.tabs(
             [
                 "Overview",
                 "Build",
                 "Missing",
                 "Sections",
+                "Connected Entities",
                 "Edit Fields",
                 "Add Field",
                 "Data",
@@ -557,6 +608,9 @@ def _render_trusted_profile() -> None:
         current_snapshot = vm.load_profile(entity_id)
         current_fields = current_snapshot.fields if current_snapshot else ()
         _render_sections(vm, current_fields)
+
+    with tab_connected:
+        _render_connected_entities(vm, entity_id)
 
     with tab_edit:
         current_snapshot = vm.load_profile(entity_id)
@@ -592,8 +646,6 @@ def render() -> None:
 
         with left:
             _create_entity_form()
-            st.divider()
-            _select_existing_entity()
 
         with right:
             st.subheader("Active Entity")

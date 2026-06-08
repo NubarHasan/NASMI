@@ -36,6 +36,7 @@ _NEVER_AUTO_ACCEPT_FIELDS: frozenset[str] = frozenset(
 _OCR_REVIEW_FIELDS: frozenset[str] = frozenset(
     {
         "passport_number",
+        "document_number",
         "surname",
         "given_names",
         "nationality",
@@ -45,6 +46,9 @@ _OCR_REVIEW_FIELDS: frozenset[str] = frozenset(
         "place_of_birth",
         "issuing_authority",
         "personal_number",
+        "sex",
+        "eye_color",
+        "height",
     }
 )
 
@@ -99,10 +103,17 @@ class FactAcceptanceService:
             if fact.status == FactStatus.PENDING
         )
 
-        require(
-            len(pending_facts) > 0,
-            f"no PENDING facts found for entity [{entity_id}]",
-        )
+        if not pending_facts:
+            _log.info(
+                "no PENDING facts found for entity [%s], skipping acceptance", entity_id
+            )
+            return FactAcceptanceResult.create(
+                entity_id=entity_id,
+                accepted_facts=(),
+                review_cases=(),
+                conflicts=(),
+                rejected_facts=(),
+            )
 
         accepted: list[Fact] = []
         review_cases: list[ReviewCase] = []
@@ -206,7 +217,6 @@ class FactAcceptanceService:
             return {}
 
         try:
-            evidence_id = str(evidence_ids[0])
             rows = self._knowledge.list_evidence_for_fact(fact.fact_id)
             if rows:
                 ev = rows[0]

@@ -9,6 +9,8 @@ from ui.state import session_manager as sm
 from ui.state.session_keys import SessionKeys
 from ui.viewmodels.review_models import (
     DecisionType,
+    OwnerSelection,
+    OwnerTarget,
     ReviewCaseDetail,
     ReviewCaseSummary,
 )
@@ -377,6 +379,108 @@ def _render_knowledge_editor(
     return selected_field.strip(), edited_value.strip()
 
 
+
+def _render_owner_editor(detail: ReviewCaseDetail) -> OwnerSelection:
+    st.markdown("#### Fact Owner")
+
+    metadata = detail.metadata or {}
+    owner_suggestion = metadata.get("owner_suggestion") if isinstance(metadata.get("owner_suggestion"), dict) else {}
+
+    suggested_name = str(owner_suggestion.get("name") or "").strip()
+    suggested_type = str(owner_suggestion.get("type") or "").strip()
+    suggested_relation = str(owner_suggestion.get("relation_to_active_entity") or "").strip()
+
+    target_labels = {
+        OwnerTarget.ACTIVE_ENTITY: "My active profile",
+        OwnerTarget.EXTERNAL_ENTITY: "External / other entity",
+    }
+
+    default_target = OwnerTarget.EXTERNAL_ENTITY if suggested_name else OwnerTarget.ACTIVE_ENTITY
+
+    selected_target = st.radio(
+        "Belongs to",
+        options=[OwnerTarget.ACTIVE_ENTITY, OwnerTarget.EXTERNAL_ENTITY],
+        index=[OwnerTarget.ACTIVE_ENTITY, OwnerTarget.EXTERNAL_ENTITY].index(default_target),
+        format_func=lambda x: target_labels.get(x, str(x)),
+        horizontal=True,
+        key=f"owner_target_{detail.case_id}",
+        help="Choose who this fact really belongs to. This prevents company/bank data from entering your personal profile.",
+    )
+
+    owner_types = [
+        "person",
+        "company",
+        "bank",
+        "university",
+        "authority",
+        "insurance_provider",
+        "employer",
+        "landlord",
+        "property",
+        "contract",
+        "unknown_organization",
+    ]
+
+    relation_types = [
+        "self",
+        "document_issuer",
+        "employer",
+        "landlord",
+        "bank",
+        "university",
+        "insurance_provider",
+        "authority",
+        "payment_receiver",
+        "service_provider",
+        "contract_party",
+        "other",
+    ]
+
+    if selected_target == OwnerTarget.ACTIVE_ENTITY:
+        st.info("This fact will be saved under your active profile.")
+        return OwnerSelection(
+            target=OwnerTarget.ACTIVE_ENTITY,
+            owner_type="person",
+            owner_name="",
+            relation_type="self",
+        )
+
+    col_type, col_relation = st.columns(2)
+
+    with col_type:
+        default_type = suggested_type if suggested_type in owner_types else "company"
+        owner_type = st.selectbox(
+            "Owner type",
+            options=owner_types,
+            index=owner_types.index(default_type),
+            key=f"owner_type_{detail.case_id}",
+        )
+
+    with col_relation:
+        default_relation = suggested_relation if suggested_relation in relation_types else "other"
+        relation_type = st.selectbox(
+            "Relation to active profile",
+            options=relation_types,
+            index=relation_types.index(default_relation),
+            key=f"relation_type_{detail.case_id}",
+        )
+
+    owner_name = st.text_input(
+        "Owner name",
+        value=suggested_name,
+        placeholder="Example: TK, Sparkasse, ABC Immobilien GmbH, Ausländerbehörde...",
+        key=f"owner_name_{detail.case_id}",
+        help="If this value belongs to a company, bank, authority or another person, write its name here.",
+    )
+
+    return OwnerSelection(
+        target=OwnerTarget.EXTERNAL_ENTITY,
+        owner_type=owner_type.strip() or "unknown_organization",
+        owner_name=owner_name.strip(),
+        relation_type=relation_type.strip() or "other",
+    )
+
+
 def _render_metadata(detail: ReviewCaseDetail) -> None:
     with st.expander("Evidence and review context"):
         if not detail.metadata:
@@ -413,6 +517,7 @@ def _render_decision_bar(
     vm: ReviewVM,
     edited_field: str,
     edited_value: str,
+    owner_selection: OwnerSelection,
 ) -> None:
     st.divider()
 
@@ -430,6 +535,7 @@ def _render_decision_bar(
                 DecisionType.ACCEPT,
                 edited_value=edited_value,
                 edited_field=edited_field,
+                owner_selection=owner_selection,
             )
             if result.success:
                 _clear_selected_case()
@@ -449,6 +555,7 @@ def _render_decision_bar(
                 DecisionType.EDIT,
                 edited_value=edited_value,
                 edited_field=edited_field,
+                owner_selection=owner_selection,
             )
             if result.success:
                 st.info("Edit saved")
@@ -504,12 +611,15 @@ def _render_selected_case(vm: ReviewVM) -> None:
     edited_field, edited_value = _render_knowledge_editor(detail, vm)
 
     st.divider()
+    owner_selection = _render_owner_editor(detail)
+
+    st.divider()
     _render_metadata(detail)
 
     st.divider()
     _render_conflict_viewer(detail)
 
-    _render_decision_bar(detail, vm, edited_field, edited_value)
+    _render_decision_bar(detail, vm, edited_field, edited_value, owner_selection)
 
 
 def render() -> None:
@@ -519,7 +629,7 @@ def render() -> None:
 
     _render_header()
 
-    tab_review, tab_noise = st.tabs(["Review Queue", "Noise Pool"])
+    tab_review, tab_noise = st.tabs(["Review Queue", "Noise Processing"])
 
     with tab_review:
         metrics = _render_metrics(vm)
@@ -540,15 +650,14 @@ def render() -> None:
 
         if metrics["pending"] == 0 and total_visible_cases == 0:
             _render_clean_state(metrics)
-            return
+        else:
+            left, right = st.columns([4, 6])
 
-        left, right = st.columns([4, 6])
+            with left:
+                _render_bucketed_queue(bucketed)
 
-        with left:
-            _render_bucketed_queue(bucketed)
-
-        with right:
-            _render_selected_case(vm)
+            with right:
+                _render_selected_case(vm)
 
     with tab_noise:
         render_noise_processing_panel()

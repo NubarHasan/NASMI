@@ -45,6 +45,25 @@ class ProfileSnapshot:
 
 
 @dataclass(frozen=True)
+class ConnectedEntityFact:
+    fact_id: str
+    field_name: str
+    value: str
+    confidence: float | None
+
+
+@dataclass(frozen=True)
+class ConnectedEntityRow:
+    relationship_id: str
+    entity_id: str
+    entity_name: str
+    entity_type: str
+    relation_type: str
+    confidence: float | None
+    facts: tuple[ConnectedEntityFact, ...]
+
+
+@dataclass(frozen=True)
 class ProfileSectionSummary:
     section: str
     total_required: int
@@ -653,6 +672,77 @@ class ProfileVM:
         except Exception as exc:
             conn.rollback()
             return ProfileActionResult(success=False, error=str(exc))
+
+    def list_connected_entities(self, entity_id: str | None) -> tuple[ConnectedEntityRow, ...]:
+        if not entity_id:
+            return ()
+
+        conn = _get_db().connection
+
+        try:
+            rows = conn.execute(
+                """
+                SELECT
+                    r.relationship_id,
+                    r.target_entity_id,
+                    r.relation_type,
+                    r.confidence,
+                    e.display_name,
+                    e.entity_type
+                FROM entity_relationships r
+                JOIN entities e ON e.entity_id = r.target_entity_id
+                WHERE r.source_entity_id = ?
+                ORDER BY r.relation_type, e.display_name
+                """,
+                (entity_id,),
+            ).fetchall()
+
+            connected: list[ConnectedEntityRow] = []
+
+            for row in rows:
+                target_entity_id = str(row["target_entity_id"])
+
+                fact_rows = conn.execute(
+                    """
+                    SELECT
+                        fact_id,
+                        field_name,
+                        canonical_value,
+                        confidence
+                    FROM facts
+                    WHERE entity_id = ?
+                      AND status = 'accepted'
+                    ORDER BY field_name
+                    """,
+                    (target_entity_id,),
+                ).fetchall()
+
+                facts = tuple(
+                    ConnectedEntityFact(
+                        fact_id=str(fact["fact_id"]),
+                        field_name=str(fact["field_name"]),
+                        value=str(fact["canonical_value"]),
+                        confidence=_safe_float(fact["confidence"]),
+                    )
+                    for fact in fact_rows
+                )
+
+                connected.append(
+                    ConnectedEntityRow(
+                        relationship_id=str(row["relationship_id"]),
+                        entity_id=target_entity_id,
+                        entity_name=str(row["display_name"]),
+                        entity_type=str(row["entity_type"]),
+                        relation_type=str(row["relation_type"]),
+                        confidence=_safe_float(row["confidence"]),
+                        facts=facts,
+                    )
+                )
+
+            return tuple(connected)
+        except Exception:
+            return ()
+
 
     def clear_profile(self, entity_id: str | None) -> ProfileActionResult:
         if not entity_id:

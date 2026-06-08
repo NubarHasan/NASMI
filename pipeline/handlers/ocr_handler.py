@@ -6,6 +6,10 @@ from pathlib import Path
 from archive.document import Document
 from archive.source import Source
 from core.guards import require
+from infrastructure.db.connection import get_db
+from infrastructure.db.repositories.sqlite_source_repository import (
+    SqliteSourceRepository,
+)
 from pipeline.artifact import ArtifactType, DocumentArtifact, OcrArtifact
 from pipeline.failure import (
     FailureCategory,
@@ -27,7 +31,8 @@ class OcrHandler:
 
     def __init__(self, ocr_service: OcrService) -> None:
         require(
-            isinstance(ocr_service, OcrService), "ocr_service must be an OcrService"
+            isinstance(ocr_service, OcrService),
+            "ocr_service must be an OcrService",
         )
         self._ocr_service = ocr_service
 
@@ -48,6 +53,9 @@ class OcrHandler:
             document=document,
         )
 
+        if not self._persist_source(job, source):
+            return
+
         request = self._build_request(job, document, source)
         if request is None:
             return
@@ -60,10 +68,10 @@ class OcrHandler:
 
     def _resolve_document_artifact(self, job: Job) -> DocumentArtifact | None:
         candidates = job.context.artifacts.by_type(ArtifactType.DOCUMENT)
+
         if not candidates:
-            _log.error("job %r: no DocumentArtifact found in context", job.job_id)
             self._record_failure(
-                job,
+                job=job,
                 message="no DocumentArtifact in context",
                 category=FailureCategory.VALIDATION,
                 severity=FailureSeverity.CRITICAL,
@@ -71,11 +79,12 @@ class OcrHandler:
                 metadata={"error_code": "MISSING_DOCUMENT_ARTIFACT"},
             )
             return None
+
         artifact = candidates[-1]
+
         if not isinstance(artifact, DocumentArtifact):
-            _log.error("job %r: artifact is not a DocumentArtifact", job.job_id)
             self._record_failure(
-                job,
+                job=job,
                 message="artifact type mismatch — expected DocumentArtifact",
                 category=FailureCategory.VALIDATION,
                 severity=FailureSeverity.CRITICAL,
@@ -83,19 +92,15 @@ class OcrHandler:
                 metadata={"error_code": "ARTIFACT_TYPE_MISMATCH"},
             )
             return None
+
         return artifact
 
     def _load_document(self, job: Job, artifact: DocumentArtifact) -> Document | None:
         try:
             return Document.from_dict(artifact.snapshot)
         except Exception as exc:
-            _log.error(
-                "job %r: failed to reconstruct Document from snapshot: %s",
-                job.job_id,
-                exc,
-            )
             self._record_failure(
-                job,
+                job=job,
                 message=f"Document reconstruction failed: {exc}",
                 category=FailureCategory.VALIDATION,
                 severity=FailureSeverity.CRITICAL,
@@ -106,6 +111,37 @@ class OcrHandler:
                 },
             )
             return None
+
+    def _persist_source(self, job: Job, source: Source) -> bool:
+        try:
+            db = get_db()
+            repo = SqliteSourceRepository(db)
+            repo.save(source)
+            db.connection.commit()
+
+            _log.info(
+                "job %r: Source %r persisted for document %r",
+                job.job_id,
+                source.source_id,
+                source.document_id,
+            )
+            return True
+
+        except Exception as exc:
+            self._record_failure(
+                job=job,
+                message=f"Source persistence failed: {exc}",
+                category=FailureCategory.SYSTEM,
+                severity=FailureSeverity.CRITICAL,
+                is_retryable=True,
+                metadata={
+                    "error_code": "SOURCE_PERSIST_ERROR",
+                    "exception_type": type(exc).__name__,
+                    "source_id": str(getattr(source, "source_id", "")),
+                    "document_id": str(getattr(source, "document_id", "")),
+                },
+            )
+            return False
 
     def _build_request(
         self,
@@ -120,9 +156,8 @@ class OcrHandler:
                 languages=(document.language,),
             )
         except Exception as exc:
-            _log.error("job %r: failed to build OcrRequest: %s", job.job_id, exc)
             self._record_failure(
-                job,
+                job=job,
                 message=f"OcrRequest construction failed: {exc}",
                 category=FailureCategory.VALIDATION,
                 severity=FailureSeverity.CRITICAL,
@@ -136,12 +171,12 @@ class OcrHandler:
 
     def _run_ocr(self, job: Job, request: OcrRequest) -> OcrResult | None:
         engine_name: str | None = job.get_payload().get("engine_name")
+
         try:
             return self._ocr_service.process(request, engine_name=engine_name)
         except Exception as exc:
-            _log.error("job %r: OCR processing failed: %s", job.job_id, exc)
             self._record_failure(
-                job,
+                job=job,
                 message=f"OCR engine failed: {exc}",
                 category=FailureCategory.SYSTEM,
                 severity=FailureSeverity.CRITICAL,
@@ -172,7 +207,9 @@ class OcrHandler:
             snapshot=result.to_dict(),
             source_artifact_ids=(doc_artifact.artifact_id,),
         )
+
         job.context.artifacts.add(artifact)
+
         _log.info(
             "job %r: OcrArtifact %r created — pages=%d confidence=%.4f",
             job.job_id,

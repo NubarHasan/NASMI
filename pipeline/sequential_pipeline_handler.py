@@ -20,6 +20,14 @@ _ORDERED_STAGES = (
     "output_build",
 )
 
+_MUST_TRY_STAGES = {
+    "classification",
+    "extraction",
+    "entity_resolution",
+    "knowledge_build",
+    "fact_acceptance",
+}
+
 
 class SequentialPipelineHandler:
 
@@ -37,16 +45,27 @@ class SequentialPipelineHandler:
         _log.info("pipeline started — job_id=%r", job.job_id)
 
         for stage in _ORDERED_STAGES:
-            if job.context.failures.has_critical():
+            has_critical = job.context.failures.has_critical()
+
+            if has_critical and stage not in _MUST_TRY_STAGES:
                 _log.warning(
-                    "pipeline aborted at stage %r due to critical failure — job_id=%r",
+                    "pipeline skipped stage %r due to critical failure — job_id=%r",
                     stage,
                     job.job_id,
                 )
-                return
+                continue
 
-            job.context.set_stage(stage)
-            _log.debug("executing stage %r — job_id=%r", stage, job.job_id)
-            self._handlers[stage].handle(job)
+            try:
+                job.context.set_stage(stage)
+                _log.info("pipeline executing stage %r — job_id=%r", stage, job.job_id)
+                self._handlers[stage].handle(job)
+            except Exception as exc:
+                _log.exception(
+                    "pipeline stage %r crashed — job_id=%r error=%s",
+                    stage,
+                    job.job_id,
+                    exc,
+                )
+                continue
 
         _log.info("pipeline completed — job_id=%r", job.job_id)

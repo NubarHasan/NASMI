@@ -27,6 +27,15 @@ class NoiseItem:
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
+_ALLOWED_STATUSES = {
+    "open",
+    "processing",
+    "reviewed",
+    "ignored",
+    "promoted",
+    "failed",
+}
+
 _INSERT = """
 INSERT INTO noise_items (
     noise_id,
@@ -77,7 +86,7 @@ SELECT
     reviewed_at,
     metadata
 FROM noise_items
-WHERE status = 'open'
+WHERE status IN ('open', 'processing', 'failed')
 ORDER BY created_at DESC
 LIMIT ?
 """
@@ -124,7 +133,13 @@ LIMIT ?
 _COUNT_OPEN = """
 SELECT COUNT(*) AS count
 FROM noise_items
-WHERE status = 'open'
+WHERE status IN ('open', 'processing', 'failed')
+"""
+
+_COUNT_BY_STATUS = """
+SELECT COUNT(*) AS count
+FROM noise_items
+WHERE status = ?
 """
 
 _UPDATE_STATUS = """
@@ -153,6 +168,17 @@ def _utcnow_iso() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _loads_metadata(value: object) -> dict[str, Any]:
+    if not value:
+        return {}
+
+    try:
+        loaded = json.loads(str(value))
+        return loaded if isinstance(loaded, dict) else {}
+    except Exception:
+        return {}
+
+
 def _row_to_noise_item(row: sqlite3.Row) -> NoiseItem:
     return NoiseItem(
         noise_id=str(row["noise_id"]),
@@ -166,7 +192,7 @@ def _row_to_noise_item(row: sqlite3.Row) -> NoiseItem:
         status=str(row["status"]),
         created_at=str(row["created_at"]),
         reviewed_at=row["reviewed_at"],
-        metadata=json.loads(row["metadata"]) if row["metadata"] else {},
+        metadata=_loads_metadata(row["metadata"]),
     )
 
 
@@ -244,11 +270,18 @@ class SqliteNoiseRepository:
         row = self._conn.execute(_COUNT_OPEN).fetchone()
         return int(row["count"]) if row else 0
 
+    def count_by_status(self, status: str) -> int:
+        row = self._conn.execute(_COUNT_BY_STATUS, (status,)).fetchone()
+        return int(row["count"]) if row else 0
+
     def update_status(self, noise_id: str, status: str) -> None:
-        if status not in {"open", "reviewed", "ignored", "promoted"}:
+        if status not in _ALLOWED_STATUSES:
             raise ValueError(f"Invalid noise status: {status}")
 
-        reviewed_at = None if status == "open" else _utcnow_iso()
+        reviewed_at = (
+            None if status in {"open", "processing", "failed"} else _utcnow_iso()
+        )
+
         self._conn.execute(_UPDATE_STATUS, (status, reviewed_at, noise_id))
         self._conn.commit()
 

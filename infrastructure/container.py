@@ -44,6 +44,7 @@ from pipeline.handlers.entity_resolution_handler import EntityResolutionHandler
 from pipeline.handlers.extraction_handler import ExtractionHandler
 from pipeline.handlers.fact_acceptance_handler import FactAcceptanceHandler
 from pipeline.handlers.knowledge_build_handler import KnowledgeBuildHandler
+from pipeline.handlers.llm_extraction_handler import LLMExtractionHandler
 from pipeline.handlers.ocr_handler import OcrHandler
 from pipeline.handlers.output_build_handler import OutputBuildHandler
 from pipeline.handlers.profile_build_handler import ProfileBuildHandler
@@ -194,6 +195,8 @@ class Container:
         self._extraction_handler = ExtractionHandler(
             extraction_service=self._extraction_service,
         )
+        self._llm_extraction_handler = LLMExtractionHandler()
+
         self._entity_resolution_handler = EntityResolutionHandler(
             resolution_service=self._entity_resolution_service,
         )
@@ -259,11 +262,23 @@ class Container:
             isinstance(handler_registry, HandlerRegistry),
             "handler_registry must be a HandlerRegistry",
         )
-        handler_registry.register(JobType.PROFILE_BUILD, self._profile_build_handler)
-        handler_registry.register(JobType.OUTPUT_BUILD, self._output_build_handler)
+        handler_registry.register(
+            JobType.DOCUMENT_IMPORT, self._document_import_handler
+        )
+        handler_registry.register(JobType.OCR, self._ocr_handler)
+        handler_registry.register(JobType.EXTRACTION, self._extraction_handler)
+        handler_registry.register(JobType.LLM_EXTRACTION, self._llm_extraction_handler)
+        handler_registry.register(
+            JobType.ENTITY_RESOLUTION, self._entity_resolution_handler
+        )
+        handler_registry.register(
+            JobType.KNOWLEDGE_BUILD, self._knowledge_build_handler
+        )
         handler_registry.register(
             JobType.FACT_ACCEPTANCE, self._fact_acceptance_handler
         )
+        handler_registry.register(JobType.PROFILE_BUILD, self._profile_build_handler)
+        handler_registry.register(JobType.OUTPUT_BUILD, self._output_build_handler)
         handler_registry.register(
             JobType.DOCUMENT_PIPELINE, self._sequential_pipeline_handler
         )

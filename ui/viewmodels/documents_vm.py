@@ -17,8 +17,10 @@ from review.review_type import ReviewStatus
 from ui.services.api_client import (
     _get_container,
     _get_db,
+    ensure_background_pipeline_running,
     get_conflict_repo,
     get_document_repo,
+    get_pipeline_service,
     get_review_repo,
 )
 from ui.viewmodels.document_models import DocumentDetail, DocumentSummary, UploadResult
@@ -190,6 +192,8 @@ def _extract_metadata_from_job(job: Job) -> dict[str, Any]:
                 metadata["page_count"] = artifact.page_count
                 metadata["confidence"] = round(float(artifact.mean_confidence), 4)
                 metadata["preview_text"] = full_text[:1500]
+                metadata["source_id"] = str(artifact.source_id)
+                metadata["ocr_text_length"] = len(full_text)
                 metadata["detected_doc_type"] = _detect_doc_type_from_text(full_text)
 
         extraction_artifacts = job.context.artifacts.by_type(ArtifactType.EXTRACTION)
@@ -233,6 +237,39 @@ def _write_uploaded_file(entity_id: str, file_name: str, file_bytes: bytes) -> P
 
 def _commit() -> None:
     _get_db().connection.commit()
+
+
+def _submit_llm_extraction_job(
+    document_id: str,
+    entity_id: str,
+    metadata: dict[str, Any],
+) -> str | None:
+    raw_text = str(metadata.get("preview_text") or "").strip()
+    source_id = str(metadata.get("source_id") or "").strip()
+
+    if not raw_text:
+        return None
+
+    try:
+        ensure_background_pipeline_running()
+
+        job = Job.create(
+            job_type=JobType.LLM_EXTRACTION,
+            payload={
+                "stage": "llm",
+                "document_id": document_id,
+                "entity_id": entity_id,
+                "source_id": source_id,
+                "raw_text": raw_text,
+            },
+            priority=JobPriority.LOW,
+            max_retries=2,
+        )
+
+        get_pipeline_service().submit(job)
+        return job.job_id
+    except Exception:
+        return None
 
 
 class DocumentsVM:
@@ -350,6 +387,17 @@ class DocumentsVM:
             _get_container().sequential_pipeline_handler.handle(job)
 
             metadata = _extract_metadata_from_job(job)
+
+            llm_job_id = _submit_llm_extraction_job(
+                document_id=str(document_id),
+                entity_id=entity_id,
+                metadata=metadata,
+            )
+
+            if llm_job_id:
+                metadata["llm_job_id"] = llm_job_id
+                metadata["llm_status"] = "pending"
+
             has_knowledge = _has_persisted_knowledge(entity_id)
             has_metadata = bool(metadata)
 

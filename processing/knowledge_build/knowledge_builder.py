@@ -899,6 +899,47 @@ _NAME_FIELDS: frozenset[str] = frozenset(
         "last_name",
     }
 )
+_LLM_REVIEW_FACT_TYPES: frozenset[str] = frozenset(
+    {
+        "surname",
+        "given_names",
+        "full_name",
+        "date_of_birth",
+        "place_of_birth",
+        "nationality",
+        "sex",
+        "passport_number",
+        "document_number",
+        "date_of_issue",
+        "date_of_expiry",
+        "expiry_date",
+        "issue_date",
+        "issuing_authority",
+        "eye_color",
+        "height",
+    }
+)
+
+
+def _is_llm_review_candidate(cf: CandidateFact, resolved_field_name: str) -> bool:
+    source = str(cf.metadata.get("source", "")).strip().lower()
+    source_stage = str(cf.source_stage).strip().lower()
+    field = resolved_field_name.strip().lower()
+    fact_type = str(cf.fact_type).strip().lower()
+
+    if source != "llm_extraction_structurer" and "llm_structured" not in source_stage:
+        return False
+
+    if cf.metadata.get("auto_accept") is True:
+        return False
+
+    if _looks_like_label_value(cf.normalized_value):
+        return False
+
+    if field in _LLM_REVIEW_FACT_TYPES:
+        return True
+
+    return fact_type in _LLM_REVIEW_FACT_TYPES
 
 
 class KnowledgeBuilder:
@@ -959,6 +1000,9 @@ class KnowledgeBuilder:
 
 def _should_build_fact(cf: CandidateFact) -> bool:
     resolved_field_name = _resolve_field_name(cf)
+
+    if _is_llm_review_candidate(cf, resolved_field_name):
+        return True
 
     if cf.fact_type in _EVIDENCE_ONLY_TYPES:
         return False
@@ -1140,6 +1184,9 @@ def _classify_date_field(cf: CandidateFact, fallback: str) -> str:
     context = _candidate_context_text(cf)
     fallback_value = fallback.strip().lower()
     target_field = str(cf.metadata.get("target_field") or "").strip().lower()
+
+    if target_field in {"date_of_birth", "date_of_issue", "date_of_expiry"}:
+        return target_field
 
     if _contains_any(context, _LEGAL_REFERENCE_DATE_HINTS):
         return "legal_reference_date"

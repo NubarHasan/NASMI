@@ -18,6 +18,19 @@ class DecisionType(StrEnum):
     EDIT = "edit"
 
 
+class OwnerTarget(StrEnum):
+    ACTIVE_ENTITY = "active_entity"
+    EXTERNAL_ENTITY = "external_entity"
+
+
+@dataclass(frozen=True)
+class OwnerSelection:
+    target: OwnerTarget = OwnerTarget.ACTIVE_ENTITY
+    owner_type: str = "person"
+    owner_name: str = ""
+    relation_type: str = "self"
+
+
 @dataclass(frozen=True)
 class ReviewCaseSummary:
     case_id: str

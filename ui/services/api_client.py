@@ -10,6 +10,7 @@ from core.identifiers import generate_entity_id
 from core.paths import DATABASE_FILE, PACKAGES_DIR, ensure_directories
 from infrastructure.container import Container
 from infrastructure.db.connection import DatabaseConnection, get_db, init_db
+from infrastructure.db.job_migration import run_phase4_schema_migration
 from infrastructure.db.repositories.sqlite_audit_query import SqliteAuditQuery
 from infrastructure.db.repositories.sqlite_conflict_repository import (
     SqliteConflictRepository,
@@ -28,6 +29,11 @@ from infrastructure.db.repositories.sqlite_review_repository import (
 )
 from infrastructure.db.sqlite_knowledge_query import SqliteKnowledgeQuery
 from infrastructure.db.sqlite_profile_query import SqliteProfileQuery
+from pipeline.handler_registry import HandlerRegistry
+from pipeline.job_queue import JobQueue
+from pipeline.job_repository import SQLiteJobRepository
+from pipeline.pipeline_service import PipelineService
+from pipeline.worker import DefaultWorker
 from processing.extraction.extractor_registry import ExtractorRegistry
 from processing.extraction.extractors.universal_document_extractor import (
     UniversalDocumentExtractor,
@@ -39,6 +45,8 @@ _db_lock = threading.Lock()
 _db_initialised = False
 _container_lock = threading.Lock()
 _container: Container | None = None
+_pipeline_lock = threading.Lock()
+_pipeline_service: PipelineService | None = None
 
 
 @dataclass(frozen=True)
@@ -89,6 +97,7 @@ def _ensure_db() -> DatabaseConnection:
         if not _db_initialised:
             ensure_directories()
             init_db(DATABASE_FILE)
+            run_phase4_schema_migration(DATABASE_FILE)
             _db_initialised = True
     return get_db()
 
@@ -121,6 +130,42 @@ def _get_container() -> Container:
                 extractor_registry=extractor_registry,
             )
     return _container
+
+
+def get_pipeline_service() -> PipelineService:
+    global _pipeline_service
+
+    if _pipeline_service is not None:
+        return _pipeline_service
+
+    with _pipeline_lock:
+        if _pipeline_service is None:
+            ensure_directories()
+
+            container = _get_container()
+            registry = HandlerRegistry()
+            container.register_handlers(registry)
+
+            repository = SQLiteJobRepository(DATABASE_FILE)
+            queue = JobQueue(DATABASE_FILE)
+            worker = DefaultWorker(registry)
+
+            _pipeline_service = PipelineService(
+                queue=queue,
+                repository=repository,
+                worker=worker,
+                max_retries=2,
+                retry_delay=10,
+                poll_interval=1.0,
+            )
+
+        return _pipeline_service
+
+
+def ensure_background_pipeline_running() -> None:
+    service = get_pipeline_service()
+    if not service.is_running:
+        service.start()
 
 
 def get_document_repo() -> SqliteDocumentRepository:

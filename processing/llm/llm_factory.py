@@ -9,6 +9,15 @@ from processing.llm.null_llm import NullLLM
 
 _ADVISORY_STOP = ["Note:", "Additionally:", "Furthermore:"]
 
+_ADVISORY_SYSTEM_PROMPT = (
+    "You are NASMI Advisory Assistant. "
+    "Answer only from the NASMI database context provided by the user prompt. "
+    "Do not invent facts. "
+    "Separate verified profile facts from pending review candidates. "
+    "If profile is missing, explain that accepted facts are required. "
+    "Be direct, practical, concise, and answer in English only."
+)
+
 
 def make_fast_llm() -> LLMPort:
     return cast(
@@ -38,6 +47,23 @@ def make_quality_llm() -> LLMPort:
     )
 
 
+def make_advisory_llm() -> LLMPort:
+    return cast(
+        LLMPort,
+        GGUFLLMAdapter.cpu(
+            model_path=QWEN_0_5B,
+            n_ctx=4096,
+            max_tokens=300,
+            temperature=0.15,
+            repeat_penalty=1.2,
+            system_prompt=_ADVISORY_SYSTEM_PROMPT,
+            few_shot=[],
+            show_thinking=False,
+            stop=_ADVISORY_STOP,
+        ),
+    )
+
+
 def make_extraction_llm() -> LLMPort:
     return cast(
         LLMPort,
@@ -47,6 +73,8 @@ def make_extraction_llm() -> LLMPort:
             max_tokens=500,
             temperature=0.0,
             repeat_penalty=1.15,
+            few_shot=[],
+            show_thinking=False,
             stop=[],
         ),
     )

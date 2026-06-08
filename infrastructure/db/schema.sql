@@ -298,7 +298,14 @@ CREATE TABLE IF NOT EXISTS noise_items (
         AND confidence <= 1.0
     ),
     status TEXT NOT NULL CHECK (
-        status IN ('open', 'reviewed', 'ignored', 'promoted')
+        status IN (
+            'open',
+            'processing',
+            'reviewed',
+            'ignored',
+            'promoted',
+            'failed'
+        )
     ),
     created_at TEXT NOT NULL,
     reviewed_at TEXT,

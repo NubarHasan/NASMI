@@ -35,14 +35,16 @@ class KnowledgeBuildResult:
             "entity_id must be a non-empty string",
         )
         require(
-            isinstance(self.facts, tuple) and len(self.facts) >= 1,
-            "facts must be a non-empty tuple",
+            isinstance(self.facts, tuple),
+            "facts must be a tuple",
         )
         require(
             all(isinstance(f, Fact) for f in self.facts),
             "all items in facts must be Fact instances",
         )
+
         fact_ids: frozenset[str] = frozenset(f.fact_id for f in self.facts)
+
         require(
             len(fact_ids) == len(self.facts),
             "fact ids must be unique within KnowledgeBuildResult",
@@ -55,7 +57,9 @@ class KnowledgeBuildResult:
             all(isinstance(e, Evidence) for e in self.evidence),
             "all items in evidence must be Evidence instances",
         )
+
         evidence_ids: frozenset[str] = frozenset(e.evidence_id for e in self.evidence)
+
         require(
             len(evidence_ids) == len(self.evidence),
             "evidence ids must be unique within KnowledgeBuildResult",
@@ -68,17 +72,17 @@ class KnowledgeBuildResult:
             all(isinstance(fe, FactEvidence) for fe in self.fact_evidence_links),
             "all items in fact_evidence_links must be FactEvidence instances",
         )
+
         for fe in self.fact_evidence_links:
             require(
                 fe.fact_id in fact_ids,
-                f"FactEvidence.fact_id '{fe.fact_id}' "
-                "does not reference a Fact in this result",
+                f"FactEvidence.fact_id '{fe.fact_id}' does not reference a Fact in this result",
             )
             require(
                 fe.evidence_id in evidence_ids,
-                f"FactEvidence.evidence_id '{fe.evidence_id}' "
-                "does not reference an Evidence in this result",
+                f"FactEvidence.evidence_id '{fe.evidence_id}' does not reference an Evidence in this result",
             )
+
         require(
             isinstance(self.provenance_records, tuple),
             "provenance_records must be a tuple",
@@ -87,9 +91,11 @@ class KnowledgeBuildResult:
             all(isinstance(p, Provenance) for p in self.provenance_records),
             "all items in provenance_records must be Provenance instances",
         )
+
         provenance_fact_ids: frozenset[str] = frozenset(
             p.fact_id for p in self.provenance_records
         )
+
         require(
             provenance_fact_ids == fact_ids,
             "provenance_records must cover every Fact exactly once — "
@@ -108,13 +114,14 @@ class KnowledgeBuildResult:
             all(isinstance(c, Conflict) for c in self.conflicts),
             "all items in conflicts must be Conflict instances",
         )
+
         for c in self.conflicts:
             for fid in c.fact_ids:
                 require(
                     fid in fact_ids,
-                    f"Conflict references fact_id '{fid}' "
-                    "which does not exist in this result",
+                    f"Conflict references fact_id '{fid}' which does not exist in this result",
                 )
+
         require(
             isinstance(self.created_at, datetime),
             "created_at must be a datetime instance",
@@ -135,6 +142,14 @@ class KnowledgeBuildResult:
     @property
     def conflict_count(self) -> int:
         return len(self.conflicts)
+
+    @property
+    def has_facts(self) -> bool:
+        return bool(self.facts)
+
+    @property
+    def has_evidence(self) -> bool:
+        return bool(self.evidence)
 
     @property
     def has_conflicts(self) -> bool:
